@@ -305,7 +305,7 @@ private fun TeamLine(t: TeamSide, g: Game, hasBall: Boolean) {
             Image(
                 painter = painterResource(R.drawable.ic_football),
                 contentDescription = "Has the ball",
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(13.dp),
             )
         }
         if (t.record.isNotBlank()) {
