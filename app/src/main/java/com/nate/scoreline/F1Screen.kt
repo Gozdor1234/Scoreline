@@ -2,6 +2,15 @@
 
 package com.nate.scoreline
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -76,7 +85,9 @@ private fun WeekendView() {
                         IconButton(onClick = polled.refresh) { Icon(Icons.Filled.Refresh, contentDescription = "Refresh") }
                     }
                 }
-                items(w.sessions, key = { "${w.id}-${it.id}" }) { s -> SessionCard(s, fav) }
+                item(key = "circuit-${w.id}") { CircuitCard(w) }
+                // Newest session first: Race, then Qualifying, then practice.
+                items(w.sessions.sortedByDescending { it.date }, key = { "${w.id}-${it.id}" }) { s -> SessionCard(s, fav) }
             }
             item {
                 Text(
@@ -163,6 +174,86 @@ private fun LastRaceView() {
                 )
             }
             item { SourceNote() }
+        }
+    }
+}
+
+/** Loads the bundled circuit dataset once (off the main thread) and keeps it for the app's lifetime. */
+object CircuitStore {
+    @Volatile private var cache: List<Circuit>? = null
+    fun all(ctx: android.content.Context): List<Circuit> = cache ?: synchronized(this) {
+        cache ?: runCatching {
+            val text = ctx.assets.open("f1-circuits.geojson").bufferedReader().use { it.readText() }
+            Circuits.parse(org.json.JSONObject(text))
+        }.getOrDefault(emptyList()).also { cache = it }
+    }
+}
+
+/** Track map plus circuit facts, under the race title. Hidden if the circuit isn't in the dataset. */
+@Composable
+private fun CircuitCard(w: F1Weekend) {
+    val ctx = LocalContext.current
+    val all by produceState<List<Circuit>?>(initialValue = null) {
+        value = withContext(Dispatchers.IO) { CircuitStore.all(ctx) }
+    }
+    val list = all ?: return
+    val city = w.location.substringBefore(",").trim()
+    val c = remember(list, w.circuit, city) { Circuits.find(list, w.circuit, city) } ?: return
+    val projected = remember(c.id) { Circuits.project(c.points) }
+    val line = MaterialTheme.colorScheme.onSurface
+    val glow = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        Column(Modifier.padding(bottom = 10.dp)) {
+            Canvas(Modifier.fillMaxWidth().height(200.dp).padding(18.dp)) {
+                val (pts, _) = projected
+                val wU = pts.maxOf { it.first }.coerceAtLeast(1e-6f)
+                val hU = pts.maxOf { it.second }.coerceAtLeast(1e-6f)
+                val scale = minOf(size.width / wU, size.height / hU)
+                val ox = (size.width - wU * scale) / 2f
+                val oy = (size.height - hU * scale) / 2f
+                val path = Path()
+                pts.forEachIndexed { i, (x, y) ->
+                    val px = ox + x * scale
+                    val py = oy + y * scale
+                    if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                }
+                path.close()
+                drawPath(path, glow, style = Stroke(width = 11.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                drawPath(path, line, style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            }
+            Text(
+                c.name,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            val facts = listOf(
+                "Length" to if (c.lengthM > 0) "%.3f km".format(c.lengthM / 1000.0) else "",
+                "First Grand Prix" to if (c.firstGp > 0) c.firstGp.toString() else "",
+                "Location" to w.location.ifBlank { c.location },
+                "Opened" to if (c.opened > 0) c.opened.toString() else "",
+                "Altitude" to "${c.altitudeM} m",
+            ).filter { it.second.isNotBlank() }
+            // Two columns of facts
+            val half = (facts.size + 1) / 2
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+                listOf(facts.take(half), facts.drop(half)).forEach { col ->
+                    Column(Modifier.weight(1f)) {
+                        col.forEach { (k, v) ->
+                            Text(k, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 6.dp))
+                            Text(v, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+            }
+            Text(
+                "Track map: f1-circuits by Tomislav Bacinger (MIT license)",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
         }
     }
 }
