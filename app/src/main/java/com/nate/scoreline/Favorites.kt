@@ -36,7 +36,10 @@ class Favorites private constructor(context: Context) {
         private set
 
     /** Game-screen tab order: 0 Team stats, 1 Players, 2 Scoring, 3 Play-by-play. */
-    var tabOrder by mutableStateOf(parseOrder(prefs.getString(KEY_TAB_ORDER, null)))
+    var tabOrder by mutableStateOf(parseOrder(prefs.getString(KEY_TAB_ORDER, null), 4))
+        private set
+    /** Bottom-bar order: 0 Scores, 1 F1, 2 Golf, 3 Standings, 4 Settings. */
+    var navOrder by mutableStateOf(parseOrder(prefs.getString(KEY_NAV_ORDER, null), 5))
         private set
     /** College scores view: "top25", "fbs", or a conference group id. */
     var cfbView by mutableStateOf(prefs.getString(KEY_CFB_VIEW, "fbs") ?: "fbs")
@@ -92,6 +95,7 @@ class Favorites private constructor(context: Context) {
     fun updateThemeMode(mode: String) { themeMode = mode; prefs.edit().putString(KEY_THEME, mode).apply() }
     fun updateMatchPhoneColors(on: Boolean) { matchPhoneColors = on; prefs.edit().putBoolean(KEY_DYNAMIC, on).apply() }
     fun updateTabOrder(order: List<Int>) { tabOrder = order; prefs.edit().putString(KEY_TAB_ORDER, order.joinToString(",")).apply() }
+    fun updateNavOrder(order: List<Int>) { navOrder = order; prefs.edit().putString(KEY_NAV_ORDER, order.joinToString(",")).apply() }
     fun updateCfbView(view: String) { cfbView = view; prefs.edit().putString(KEY_CFB_VIEW, view).apply() }
     /** Pins the group, or unpins it if it's already pinned. One pin per league. */
     fun togglePin(league: League, groupId: String) {
@@ -122,10 +126,11 @@ class Favorites private constructor(context: Context) {
         .filter { prefs.contains(KEY_CUSTOM_PREFIX + it.key) }
         .associateWith { prefs.getInt(KEY_CUSTOM_PREFIX + it.key, 0) }
 
-    private fun parseOrder(raw: String?): List<Int> {
+    private fun parseOrder(raw: String?, size: Int): List<Int> {
         val parsed = raw?.split(',')?.mapNotNull { it.trim().toIntOrNull() } ?: emptyList()
-        // Accept only a full permutation of 0..3; anything else falls back to the default order.
-        return if (parsed.sorted() == listOf(0, 1, 2, 3)) parsed else listOf(0, 1, 2, 3)
+        // Accept only a full permutation of 0 until size; anything else falls back to the default order.
+        val default = (0 until size).toList()
+        return if (parsed.sorted() == default) parsed else default
     }
 
     private fun readNames(): Map<String, String> =
@@ -145,6 +150,7 @@ class Favorites private constructor(context: Context) {
         private const val KEY_THEME = "theme_mode"
         private const val KEY_DYNAMIC = "match_phone_colors"
         private const val KEY_TAB_ORDER = "game_tab_order"
+        private const val KEY_NAV_ORDER = "nav_order"
         private const val KEY_CFB_VIEW = "cfb_view"
         private const val KEY_PIN_NFL = "pin_nfl"
         private const val KEY_PIN_CFB = "pin_cfb"

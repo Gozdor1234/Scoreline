@@ -19,6 +19,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
@@ -70,16 +71,6 @@ sealed interface Route {
     data object DriverPicker : Route
 }
 
-/** A bottom-bar tab: either a Material icon or one of the app's own single-color drawables. */
-private data class TabDef(val label: String, val icon: ImageVector? = null, val drawable: Int = 0)
-
-private val tabs = listOf(
-    TabDef("Scores", Icons.Filled.Home),
-    TabDef("F1", drawable = R.drawable.ic_nav_f1),
-    TabDef("Golf", drawable = R.drawable.ic_nav_golf),
-    TabDef("Standings", Icons.AutoMirrored.Filled.List),
-    TabDef("Settings", Icons.Filled.Settings),
-)
 
 @Composable
 fun App(pendingRoute: MutableState<Route?>) {
@@ -112,27 +103,14 @@ fun App(pendingRoute: MutableState<Route?>) {
         null -> holder.SaveableStateProvider("tabs") {
           Scaffold(
             bottomBar = {
-                val extra = LocalExtraColors.current
-                val onBar = extra.onBar
-                NavigationBar(containerColor = extra.bar ?: NavigationBarDefaults.containerColor) {
-                    tabs.forEachIndexed { i, t ->
-                        NavigationBarItem(
-                            selected = tab == i,
-                            onClick = { tab = i },
-                            icon = {
-                                if (t.icon != null) Icon(t.icon, contentDescription = null)
-                                else Icon(painterResource(t.drawable), contentDescription = null)
-                            },
-                            label = { Text(t.label) },
-                            colors = if (onBar == null) NavigationBarItemDefaults.colors()
-                            else NavigationBarItemDefaults.colors(
-                                unselectedIconColor = onBar.copy(alpha = 0.75f),
-                                unselectedTextColor = onBar.copy(alpha = 0.75f),
-                                selectedTextColor = onBar,
-                            ),
-                        )
-                    }
-                }
+                // Press and hold an item, then drag sideways to rearrange; the order is saved.
+                val fav = Favorites.get(LocalContext.current)
+                ReorderableNavBar(
+                    order = fav.navOrder,
+                    selected = tab,
+                    onSelect = { tab = it },
+                    onReorder = { fav.updateNavOrder(it) },
+                )
             },
         ) { pad ->
             val m = Modifier.padding(pad)
