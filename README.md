@@ -1,57 +1,101 @@
-# Scoreology
+<p align="center">
+  <img src="docs/banner.svg" alt="Scoreology: live scores, stats, and standings for NFL, college football, Formula 1, and golf" width="100%">
+</p>
 
-Personal Android app for NFL, college football, and F1: live scores, game detail with team and player stats, standings, favorites, and alerts.
+<p align="center">
+  <a href="https://github.com/Gozdor1234/Scoreline/releases/latest"><img src="https://img.shields.io/github/v/release/Gozdor1234/Scoreline?label=latest%20build&color=2ea44f" alt="Latest build"></a>
+  <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white" alt="Android 8.0+">
+  <img src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin and Jetpack Compose">
+  <a href="https://github.com/Gozdor1234/Scoreline/actions"><img src="https://img.shields.io/github/actions/workflow/status/Gozdor1234/Scoreline/build-apk.yml?label=build" alt="Build status"></a>
+</p>
 
-## What's in it
+<p align="center"><b>Every score, every stat, every standing. No ads, no clutter, no account.</b></p>
 
-| Tab | What it shows | Refresh |
-|---|---|---|
-| Scores | NFL / College (all FBS) by week, favorites pinned first, live down and distance, "My teams" filter | 30 s while any game is live, 5 min otherwise |
-| Game detail | Score, quarter linescore, team stats, player stats by category (passing, rushing, receiving, defense...), scoring plays, drive-by-drive play-by-play, favorite toggle | 20 s while live |
-| F1 | This weekend's sessions with running order (tap to expand), last race classified results with grid, time/status, points, fastest lap | 30 s while a session is live |
-| Standings | NFL (by division), College (by conference), F1 drivers, F1 constructors | 30 min |
-| Settings | Favorite teams and drivers, alerts, appearance (match phone colors; System, Light, Dark, AMOLED) | |
+---
 
-Polling only runs while the app is on screen.
+**Scoreology** is a fast, good-looking Android app that keeps you on top of the games you care about. Follow live NFL and college football scores, drill into box scores and player stats, catch every F1 session, and track the golf leaderboard shot by shot, all from one place and all updating on its own.
 
-## Build the APK with GitHub Actions (no installs on your PC)
+## ✨ Highlights
 
-1. Sign in at github.com (free account is fine) and create a **new private repository**, for example `scoreline`. Don't add a README or .gitignore.
-2. Unzip `Scoreline-source.zip` on your computer.
-3. On the empty repo page, click **uploading an existing file**. Open the unzipped `scoreline` folder, select **everything inside it** (not the folder itself), and drag it onto the page. Commit to `main`.
-4. Confirm the repo now shows a `.github/workflows/build-apk.yml` file. Some browsers skip hidden folders on drag-and-drop. If it's missing: **Add file > Create new file**, type `.github/workflows/build-apk.yml` as the name, paste in that file's contents from the zip, and commit.
-5. Open the **Actions** tab. The "Build APK" run starts automatically (first run is roughly 5 to 8 minutes). You can also start it manually with **Run workflow**.
-6. When the run shows a green check, open it and download **Scoreology-APK-N** under Artifacts. GitHub delivers it as a .zip; the .apk is inside.
+- **Live scores that keep up.** Games refresh every 30 seconds while they're live, with down and distance and a little 🏈 showing who has the ball. Pull down to refresh any time.
+- **Game detail that goes deep.** Team stats, player stats, scoring plays, and drive-by-drive play-by-play, under a header that fades in each team's colors.
+- **Tap anything.** Teams open to their schedule, stats, and roster. Players open to an overview, season and game-by-game stats, and a bio.
+- **Your teams first.** Favorites float to the top, the "My teams" filter hides everything else, and notifications cover kickoffs, scores, and finals.
+- **Built your way.** Themes include light, dark, AMOLED black, and your phone's own colors, plus a full custom palette. You can drag the tabs and bottom bar into whatever order you like.
 
-## Install on the phone
+## 🏟️ What's inside
 
-1. Get the .apk onto the phone. Easiest: open the Actions run in the phone's browser (signed in to GitHub), download the artifact, and open the zip in the Files app.
-2. Tap the .apk. Android will ask you to allow **Install unknown apps** for that app (browser or Files). Allow it for that one source.
-3. Play Protect may say the developer is unrecognized. Choose **Install anyway**. That warning appears for any app not from the Play Store.
+| | |
+|---|---|
+| 🏈 **Scores** | NFL and college football by week. College can show Top 25, all FBS, or one conference, and you can pin a favorite conference. Pinch to zoom, with two columns when fully zoomed out. |
+| 💰 **Betting lines** | Moneyline, spread, and over/under on upcoming games. Lines come from FanDuel if you add a free Odds API key, otherwise DraftKings. |
+| 📊 **Standings** | NFL divisions, college conferences, and F1 driver and constructor championships. |
+| 🏎️ **Formula 1** | Race weekend sessions (newest first), a circuit card with a track map and details, and full results from the last race. |
+| ⛳ **Golf** | Live PGA TOUR leaderboard, the season schedule, round-by-round standings, hole-by-hole scorecards, and golfer season stats. |
+| 📱 **Home-screen widget** | Your games at a glance without opening the app. |
+| 🎨 **Appearance** | System, light, dark (gray-blue), AMOLED, dynamic phone colors, and a custom color palette with brightness control. |
 
-To update: push any change (or click Run workflow), download the new APK, and install it over the old one. Favorites are kept, because every build is signed with the same key and gets a higher version number.
+## 📲 Install it
 
-## Things to know
+1. On your Android phone, open the **[latest release](https://github.com/Gozdor1234/Scoreline/releases/latest)**.
+2. Tap the **`Scoreology-N.apk`** file to download it, then open it.
+3. If Android asks, allow **Install unknown apps** for your browser or Files app.
+4. If Play Protect warns about an unrecognized developer, tap **Install anyway**. This happens with any app that isn't from the Play Store.
 
-- **Data sources.** Scores, stats, and NFL/college standings come from ESPN's public but *undocumented* endpoints. They are free and fast but can change without notice; if a screen suddenly shows "Couldn't load data", that's the likely cause and the parser needs a tweak. F1 standings and results come from the Jolpica F1 API (documented, community-run successor to Ergast). The F1 weekend running order comes from ESPN and is not official timing.
-- **Alerts** are checked about every 15 minutes, which is Android's floor for background work, and Doze can delay them further while the phone sits idle. They are close-to-live, not play-by-play. For reliability set the app's battery usage to **Unrestricted** (Settings > Apps > Scoreology > Battery). Alert types: kickoff, score change (optional), final; F1 qualifying, sprint, and race results with the top 3.
-- **Keep the repo private.** The signing key (`keystore/scoreline.jks`) and its password are committed so every build can update the installed app. Anyone holding that key could sign an "update" your phone would accept. For a stricter setup, move the key into GitHub Actions secrets.
-- **Personal use.** ESPN's data is not licensed for redistribution; don't publish this app.
+**Updating:** install the newer APK right over the old one. Your favorites and settings carry over.
 
-## Project layout
+> 💡 **Tip:** For timely alerts, set the app's battery usage to **Unrestricted** (Settings > Apps > Scoreology > Battery). Android checks for alerts about every 15 minutes, and it can wait longer than that while the phone is idle.
+
+## 🔌 Where the data comes from
+
+| Source | Used for |
+|---|---|
+| ESPN public endpoints | NFL and college scores, box scores, play-by-play, teams, players, standings, golf, and the DraftKings lines |
+| [Jolpica F1](https://github.com/jolpica/jolpica-f1) | F1 results and championship standings |
+| [The Odds API](https://the-odds-api.com/) (optional) | FanDuel lines, using your own free key |
+| [f1-circuits](https://github.com/bacinger/f1-circuits) (MIT) | F1 track maps |
+
+The ESPN endpoints are public but undocumented, so ESPN can change them without warning. If a screen suddenly says "Couldn't load data," that's usually why, and the parser needs a small fix.
+
+## 🛠️ Under the hood
+
+- **Language and UI:** Kotlin 2.0 and Jetpack Compose (Material 3)
+- **Libraries:** Coil for images and WorkManager for background alerts
+- **Android versions:** minSdk 26 (Android 8.0), targetSdk 34
+- **Builds:** every push to `main` builds a signed APK with **GitHub Actions** (`.github/workflows/build-apk.yml`) and publishes it as a release. No local Android setup needed.
+- **Polling:** data only refreshes while the app is on screen, so it's light on battery.
+
+<details>
+<summary><b>Project layout</b></summary>
 
 ```
 app/src/main/java/com/nate/scoreline/
-  Net.kt              HTTP + null-tolerant JSON helpers
-  Espn.kt             NFL/college scoreboard, game summary, standings, team list parsers
-  F1.kt               ESPN F1 weekend + Jolpica results/standings parsers
-  AlertLogic.kt       Pure change detection for notifications
-  Alerts.kt           Notification channel + 15-minute WorkManager job
-  Favorites.kt        Saved favorites and settings
-  MainActivity.kt     Tabs and back stack
-  UiCommon.kt         Theme, lifecycle-aware polling, shared widgets
-  ScoresScreen.kt / GameDetailScreen.kt / F1Screen.kt / StandingsScreen.kt / SettingsScreen.kt
-.github/workflows/build-apk.yml   CI build that produces the APK
+  MainActivity.kt        Navigation, tabs, and back stack
+  UiCommon.kt            Theme, lifecycle-aware polling, shared components
+  ScoresScreen.kt        Weekly scoreboard, pinch zoom, pull to refresh
+  GameDetailScreen.kt    Box score, players, scoring, play-by-play
+  TeamScreen.kt          Team schedule, stats, roster
+  PlayerScreen.kt        Player overview, stats, bio
+  StandingsScreen.kt     NFL, college, and F1 standings
+  F1Screen.kt / F1.kt / Circuits.kt     F1 weekend, results, circuit maps
+  GolfScreen.kt / GolfData.kt           Leaderboard, schedule, scorecards
+  OddsData.kt / OddsRepo.kt / OddsUi.kt Betting lines
+  Espn.kt / TeamData.kt  ESPN parsers
+  Alerts.kt / AlertLogic.kt             Notifications
+  ScoresWidget.kt / WidgetFormat.kt     Home-screen widget
+  Favorites.kt           Saved favorites and settings
+  SettingsScreen.kt / ThemeColors.kt / ColorPicker.kt   Settings and theming
+  NavBar.kt / ReorderableTabs.kt        Drag-to-reorder bars
+  Net.kt                 HTTP and JSON helpers
 ```
 
-Stack: Kotlin 2.0.21, Jetpack Compose (Material 3), AGP 8.5.2, Gradle 8.9, minSdk 26 (Android 8.0), targetSdk 34.
+</details>
+
+## ⚠️ Notes
+
+- Scoreology is a personal hobby project. It isn't affiliated with or endorsed by ESPN, the NFL, the NCAA, Formula 1, the PGA TOUR, FanDuel, or DraftKings. All team names and logos belong to their owners.
+- The APK signing key lives in this repo so the automated builds can sign updates. That's convenient, but anyone with the key could sign an APK that installs as an "update," so only install Scoreology from this repo's Releases page.
+
+---
+
+<p align="center">Made with ☕ and a lot of Sundays.</p>
