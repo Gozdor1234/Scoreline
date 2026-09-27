@@ -23,7 +23,19 @@ jobs:
           gradle-version: "8.9"
 
       - name: Build release APK
-        run: gradle assembleRelease --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          gradle assembleRelease --no-daemon 2>&1 | tee build.log
+      # On failure, surface the key error lines as annotations so they show on the run page.
+      - name: Report build errors
+        if: failure()
+        run: |
+          grep -E "^e: |What went wrong|Could not|error:" build.log | head -40 | while IFS= read -r line; do
+            echo "::error::${line}"
+          done
+          grep -A6 "What went wrong" build.log | head -20 | while IFS= read -r line; do
+            echo "::warning::${line}"
+          done
 
       - name: Rename APK
         run: cp app/build/outputs/apk/release/app-release.apk "Scoreline-${{ github.run_number }}.apk"
