@@ -42,6 +42,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -160,12 +161,24 @@ private fun LeaderboardList(
         LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
             before?.invoke(this)
             if (showHeader) item { TournamentHeader(t) { open(Route.GolfEvent(t.id)) } }
-            leaderboardItems(t, open, view) { view = it }
+            leaderboardItems(t, open, view, onView = { view = it })
         }
     }
 }
 
-private fun LazyListScope.leaderboardItems(t: GolfTournament, open: (Route) -> Unit, view: Int, onView: (Int) -> Unit) {
+/**
+ * Leaderboard rows with the round picker. [limit] shows only the top N with a "Show all" /
+ * "Show top N" toggle (used on the Info tab); null shows everyone.
+ */
+private fun LazyListScope.leaderboardItems(
+    t: GolfTournament,
+    open: (Route) -> Unit,
+    view: Int,
+    onView: (Int) -> Unit,
+    limit: Int? = null,
+    expanded: Boolean = true,
+    onExpand: (Boolean) -> Unit = {},
+) {
     if (t.entries.isEmpty()) {
         item { InlineNote(if (t.state == "pre") "The field and tee times haven't been posted yet." else "No leaderboard yet.") }
         return
@@ -185,20 +198,33 @@ private fun LazyListScope.leaderboardItems(t: GolfTournament, open: (Route) -> U
     }
     if (view > 0 && view in done) {
         val rows = Golf.standingsAfter(t.entries, view)
+        val shown = if (limit != null && !expanded) rows.take(limit) else rows
         item(key = "round-head") { RoundHeaderRow(view) }
-        rows.forEachIndexed { i, r ->
+        shown.forEachIndexed { i, r ->
             item(key = "r$view-${r.entry.athleteId}-$i") {
                 RoundStandingRow(r) { if (r.entry.athleteId.isNotEmpty()) open(Route.Golfer(r.entry.athleteId)) }
             }
         }
+        showAllToggle(limit, rows.size, expanded, onExpand)
         return
     }
-    item { LeaderboardHeaderRow() }
-    val firstOut = t.entries.indexOfFirst { it.outStatus.isNotEmpty() }
-    t.entries.forEachIndexed { i, e ->
+    val shown = if (limit != null && !expanded) t.entries.take(limit) else t.entries
+    item(key = "lb-head") { LeaderboardHeaderRow() }
+    val firstOut = shown.indexOfFirst { it.outStatus.isNotEmpty() }
+    shown.forEachIndexed { i, e ->
         if (i == firstOut) item(key = "cutline") { ListTitle("Missed cut / withdrawn") }
         item(key = "g-${e.athleteId}-$i") {
             GolferRow(e) { if (e.athleteId.isNotEmpty()) open(Route.Golfer(e.athleteId)) }
+        }
+    }
+    showAllToggle(limit, t.entries.size, expanded, onExpand)
+}
+
+private fun LazyListScope.showAllToggle(limit: Int?, total: Int, expanded: Boolean, onExpand: (Boolean) -> Unit) {
+    if (limit == null || total <= limit) return
+    item(key = "lb-toggle") {
+        TextButton(onClick = { onExpand(!expanded) }, modifier = Modifier.padding(horizontal = 8.dp)) {
+            Text(if (expanded) "Show top $limit" else "Show all $total players")
         }
     }
 }
@@ -363,6 +389,7 @@ private fun ScheduleRow(c: GolfCalendarItem, live: Boolean, onClick: () -> Unit)
 fun GolfEventScreen(eventId: String, onBack: () -> Unit, open: (Route) -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var view by rememberSaveable { mutableIntStateOf(0) }
+    var infoExpanded by rememberSaveable { mutableStateOf(false) }
     var scRound by rememberSaveable { mutableStateOf<Int?>(null) } // null = all rounds
     // Hole-by-hole scores only load when the Info tab is open.
     val scP = if (tab == 0) {
@@ -394,9 +421,21 @@ fun GolfEventScreen(eventId: String, onBack: () -> Unit, open: (Route) -> Unit) 
                     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
                         if (tab == 0) {
                             item { TournamentInfo(tour) }
+                            // Leaderboard (same round picker as the Leaderboard tab), top 10 with "Show all".
+                            if (tour.entries.isNotEmpty()) {
+                                item(key = "info-lb-title") {
+                                    Text(
+                                        "Leaderboard",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(start = 16.dp, top = 4.dp),
+                                    )
+                                }
+                            }
+                            leaderboardItems(tour, open, view, { view = it }, limit = 10, expanded = infoExpanded, onExpand = { infoExpanded = it })
                             scorecardItems(scP, scRound) { scRound = it }
                         } else {
-                            leaderboardItems(tour, open, view) { view = it }
+                            leaderboardItems(tour, open, view, onView = { view = it })
                         }
                     }
                 }
