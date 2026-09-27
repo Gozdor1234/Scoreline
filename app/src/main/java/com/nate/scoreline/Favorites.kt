@@ -54,8 +54,8 @@ class Favorites private constructor(context: Context) {
     }
 
     fun setAlerts(enabled: Boolean) { alertsEnabled = enabled; prefs.edit().putBoolean(KEY_ALERTS, enabled).apply() }
-    fun setScoreAlerts(enabled: Boolean) { scoreAlerts = enabled; prefs.edit().putBoolean(KEY_SCORE_ALERTS, enabled).apply() }
-    fun setF1Alerts(enabled: Boolean) { f1Alerts = enabled; prefs.edit().putBoolean(KEY_F1_ALERTS, enabled).apply() }
+    fun updateScoreAlerts(enabled: Boolean) { scoreAlerts = enabled; prefs.edit().putBoolean(KEY_SCORE_ALERTS, enabled).apply() }
+    fun updateF1Alerts(enabled: Boolean) { f1Alerts = enabled; prefs.edit().putBoolean(KEY_F1_ALERTS, enabled).apply() }
 
     private fun readNames(): Map<String, String> =
         prefs.getStringSet(KEY_TEAM_NAMES, emptySet())!!.mapNotNull {

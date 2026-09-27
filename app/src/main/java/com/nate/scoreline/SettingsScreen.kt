@@ -101,8 +101,8 @@ fun SettingsScreen(modifier: Modifier, open: (Route) -> Unit) {
 
         item { SectionHeader("Alerts") }
         item { SwitchRow("Notifications for my teams", fav.alertsEnabled) { setAlerts(it) } }
-        item { SwitchRow("Include score changes (not just kickoff and final)", fav.scoreAlerts, enabled = fav.alertsEnabled) { fav.setScoreAlerts(it) } }
-        item { SwitchRow("F1 qualifying, sprint and race results", fav.f1Alerts, enabled = fav.alertsEnabled) { fav.setF1Alerts(it) } }
+        item { SwitchRow("Include score changes (not just kickoff and final)", fav.scoreAlerts, enabled = fav.alertsEnabled) { fav.updateScoreAlerts(it) } }
+        item { SwitchRow("F1 qualifying, sprint and race results", fav.f1Alerts, enabled = fav.alertsEnabled) { fav.updateF1Alerts(it) } }
         if (permDenied) item {
             Column(Modifier.padding(horizontal = 16.dp)) {
                 Hint("Notification permission was denied. Enable it in Android settings to get alerts.")
