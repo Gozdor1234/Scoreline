@@ -100,7 +100,7 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
         view == "top25" || view == "fbs" -> Conferences.FBS
         else -> view
     }
-    val pinId = if (cfb) fav.pinnedCfb else null
+    val pinId = if (cfb) fav.scoresPinCfb else null
     // FanDuel lines when an Odds API key is set (cached 3 h); otherwise ESPN's DraftKings lines on each game.
     val ctx = LocalContext.current
     val fdP = if (fav.showOdds && fav.oddsApiKey.isNotBlank()) {
@@ -317,12 +317,12 @@ private fun CollegeViewRow(fav: Favorites, view: String) {
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).width(220.dp),
                 )
                 Conferences.all.forEach { (id, name) ->
-                    val pinned = fav.pinnedCfb == id
+                    val pinned = fav.scoresPinCfb == id
                     DropdownMenuItem(
                         text = { Text(name, fontWeight = if (view == id) FontWeight.Bold else FontWeight.Normal) },
                         onClick = { fav.updateCfbView(id); menuOpen = false },
                         trailingIcon = {
-                            IconButton(onClick = { fav.togglePin(League.CFB, id) }) {
+                            IconButton(onClick = { fav.toggleScoresPin(id) }) {
                                 Icon(
                                     Icons.Filled.Star,
                                     contentDescription = if (pinned) "Unpin $name" else "Pin $name",
@@ -335,8 +335,8 @@ private fun CollegeViewRow(fav: Favorites, view: String) {
             }
         }
         if (confView) {
-            val pinned = fav.pinnedCfb == view
-            IconButton(onClick = { fav.togglePin(League.CFB, view) }) {
+            val pinned = fav.scoresPinCfb == view
+            IconButton(onClick = { fav.toggleScoresPin(view) }) {
                 Icon(
                     Icons.Filled.Star,
                     contentDescription = if (pinned) "Unpin conference" else "Pin conference to top",

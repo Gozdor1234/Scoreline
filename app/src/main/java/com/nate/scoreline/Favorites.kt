@@ -49,6 +49,9 @@ class Favorites private constructor(context: Context) {
         private set
     var pinnedCfb by mutableStateOf(prefs.getString(KEY_PIN_CFB, null))
         private set
+    /** Conference pinned on the college Scores list. Separate from the Standings pin. */
+    var scoresPinCfb by mutableStateOf(prefs.getString(KEY_SCORES_PIN_CFB, null))
+        private set
 
     /** Master switch for the custom palette. Colors are kept when it's off. */
     var customColorsOn by mutableStateOf(prefs.getBoolean(KEY_CUSTOM_ON, false))
@@ -111,6 +114,12 @@ class Favorites private constructor(context: Context) {
         prefs.edit().putString(if (league == League.NFL) KEY_PIN_NFL else KEY_PIN_CFB, next).apply()
     }
 
+    /** Pins a conference to the top of college Scores, or unpins it. Doesn't touch Standings. */
+    fun toggleScoresPin(groupId: String) {
+        scoresPinCfb = if (scoresPinCfb == groupId) null else groupId
+        prefs.edit().putString(KEY_SCORES_PIN_CFB, scoresPinCfb).apply()
+    }
+
     fun updateShowOdds(on: Boolean) { showOdds = on; prefs.edit().putBoolean(KEY_SHOW_ODDS, on).apply() }
     fun updateOddsApiKey(key: String) { oddsApiKey = key.trim(); prefs.edit().putString(KEY_ODDS_KEY, oddsApiKey).apply() }
     fun updateScoresZoom(z: Float) {
@@ -163,6 +172,7 @@ class Favorites private constructor(context: Context) {
         private const val KEY_CFB_VIEW = "cfb_view"
         private const val KEY_PIN_NFL = "pin_nfl"
         private const val KEY_PIN_CFB = "pin_cfb"
+        private const val KEY_SCORES_PIN_CFB = "pin_scores_cfb"
         private const val KEY_CUSTOM_ON = "custom_colors_on"
         private const val KEY_ZOOM = "scores_zoom"
         private const val KEY_SHOW_ODDS = "show_odds"
