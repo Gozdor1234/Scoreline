@@ -13,7 +13,9 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -71,13 +73,21 @@ fun App() {
         null -> holder.SaveableStateProvider("tabs") {
           Scaffold(
             bottomBar = {
-                NavigationBar {
+                val extra = LocalExtraColors.current
+                val onBar = extra.onBar
+                NavigationBar(containerColor = extra.bar ?: NavigationBarDefaults.containerColor) {
                     tabs.forEachIndexed { i, t ->
                         NavigationBarItem(
                             selected = tab == i,
                             onClick = { tab = i },
                             icon = { Icon(t.icon, contentDescription = null) },
                             label = { Text(t.label) },
+                            colors = if (onBar == null) NavigationBarItemDefaults.colors()
+                            else NavigationBarItemDefaults.colors(
+                                unselectedIconColor = onBar.copy(alpha = 0.75f),
+                                unselectedTextColor = onBar.copy(alpha = 0.75f),
+                                selectedTextColor = onBar,
+                            ),
                         )
                     }
                 }

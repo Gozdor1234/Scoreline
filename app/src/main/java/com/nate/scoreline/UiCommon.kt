@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TopAppBarColors
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -30,6 +33,9 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -40,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -107,29 +114,99 @@ fun ScorelineTheme(content: @Composable () -> Unit) {
         dark -> darkColorScheme()
         else -> lightColorScheme()
     }
-    val scheme = when {
+    val themed = when {
         mode == "amoled" -> base.toAmoled()
         dark -> base.toGrayBlue()
         else -> base
     }
+    val custom = if (prefs.customColorsOn) prefs.customColors else emptyMap()
+    val scheme = themed.withCustom(custom)
+    val extra = extraColors(custom)
 
-    // Keep status/navigation bar icons readable when the app's mode differs from the phone's.
+    // Status/navigation bar icons follow the actual background, so they stay readable
+    // when the app's mode or a custom background differs from the phone's setting.
+    val barsDark = ColorMath.isDark(scheme.background.toArgb())
     val activity = ctx as? ComponentActivity
-    LaunchedEffect(dark, activity) {
+    LaunchedEffect(barsDark, activity) {
         activity?.enableEdgeToEdge(
-            statusBarStyle = if (dark) SystemBarStyle.dark(AndroidColor.TRANSPARENT)
+            statusBarStyle = if (barsDark) SystemBarStyle.dark(AndroidColor.TRANSPARENT)
             else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
-            navigationBarStyle = if (dark) SystemBarStyle.dark(AndroidColor.TRANSPARENT)
+            navigationBarStyle = if (barsDark) SystemBarStyle.dark(AndroidColor.TRANSPARENT)
             else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
         )
     }
 
-    MaterialTheme(colorScheme = scheme) {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, content = content)
+    CompositionLocalProvider(LocalExtraColors provides extra) {
+        MaterialTheme(colorScheme = scheme) {
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, content = content)
+        }
     }
 }
 
-val LiveRed = Color(0xFFE53935)
+/** Colors outside Material's scheme: the live indicator and optional custom bar color. */
+data class ExtraColors(val live: Color, val bar: Color?, val onBar: Color?)
+
+private val DefaultLive = Color(0xFFE53935)
+val LocalExtraColors = staticCompositionLocalOf { ExtraColors(DefaultLive, null, null) }
+
+/** The live/favorite accent (red unless customized). */
+val LiveRed: Color
+    @Composable @ReadOnlyComposable get() = LocalExtraColors.current.live
+
+private fun extraColors(custom: Map<ColorSlot, Int>): ExtraColors {
+    val bar = custom[ColorSlot.Bars]
+    return ExtraColors(
+        live = custom[ColorSlot.Live]?.let { Color(it) } ?: DefaultLive,
+        bar = bar?.let { Color(it) },
+        onBar = bar?.let { Color(ColorMath.onColorFor(it)) },
+    )
+}
+
+/**
+ * Layers the user's custom colors over the theme. Anything not customized keeps the theme's
+ * color, except where that would break readability (text on a new background, text on buttons),
+ * which is derived automatically.
+ */
+private fun ColorScheme.withCustom(c: Map<ColorSlot, Int>): ColorScheme {
+    if (c.isEmpty()) return this
+    var s = this
+    c[ColorSlot.Background]?.let { bg ->
+        val e = { amt: Float -> Color(ColorMath.elevate(bg, amt)) }
+        s = s.copy(
+            background = Color(bg), surface = Color(bg), surfaceDim = Color(bg), surfaceContainerLowest = Color(bg),
+            surfaceContainerLow = e(0.04f), surfaceContainer = e(0.07f), surfaceContainerHigh = e(0.10f),
+            surfaceContainerHighest = e(0.13f), surfaceVariant = e(0.16f), surfaceBright = e(0.20f),
+        )
+        // If text wasn't customized and no longer reads on this background, switch it to black or white.
+        if (ColorSlot.Text !in c && ColorMath.contrast(s.onSurface.toArgb(), bg) < 4.5) {
+            val on = ColorMath.onColorFor(bg)
+            s = s.copy(onBackground = Color(on), onSurface = Color(on))
+            if (ColorSlot.SubText !in c) s = s.copy(onSurfaceVariant = Color(ColorMath.mix(on, bg, 0.3f)))
+        }
+    }
+    c[ColorSlot.Cards]?.let { card ->
+        val bg = s.background.toArgb()
+        s = s.copy(
+            surfaceContainerLow = Color(ColorMath.mix(card, bg, 0.5f)),
+            surfaceContainer = Color(card), surfaceContainerHigh = Color(card), surfaceContainerHighest = Color(card),
+            surfaceVariant = Color(ColorMath.elevate(card, 0.06f)),
+        )
+    }
+    c[ColorSlot.Accent]?.let { a ->
+        val container = ColorMath.mix(a, s.background.toArgb(), 0.65f)
+        s = s.copy(
+            primary = Color(a), onPrimary = Color(ColorMath.onColorFor(a)), surfaceTint = Color(a),
+            primaryContainer = Color(container), onPrimaryContainer = Color(ColorMath.onColorFor(container)),
+        )
+    }
+    c[ColorSlot.Highlight]?.let { h ->
+        s = s.copy(secondaryContainer = Color(h), onSecondaryContainer = Color(ColorMath.onColorFor(h)))
+    }
+    c[ColorSlot.Text]?.let { t -> s = s.copy(onBackground = Color(t), onSurface = Color(t)) }
+    c[ColorSlot.SubText]?.let { t -> s = s.copy(onSurfaceVariant = Color(t)) }
+    c[ColorSlot.Lines]?.let { l -> s = s.copy(outline = Color(l), outlineVariant = Color(l)) }
+    return s
+}
 
 class Loadable<T>(val data: T?, val error: String?, val loading: Boolean, val updatedAt: Long)
 class Polled<T>(val state: Loadable<T>, val refresh: () -> Unit)
@@ -258,4 +335,21 @@ fun TeamBadge(team: String, size: Dp = 26.dp) {
             softWrap = false,
         )
     }
+}
+
+/** Screen-header colors, honoring the custom bar color (with auto black/white content). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun scorelineTopBarColors(): TopAppBarColors {
+    val e = LocalExtraColors.current
+    val bar = e.bar
+    val on = e.onBar
+    return if (bar == null || on == null) TopAppBarDefaults.topAppBarColors()
+    else TopAppBarDefaults.topAppBarColors(
+        containerColor = bar,
+        scrolledContainerColor = bar,
+        titleContentColor = on,
+        navigationIconContentColor = on,
+        actionIconContentColor = on,
+    )
 }

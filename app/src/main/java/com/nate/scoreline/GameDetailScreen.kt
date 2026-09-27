@@ -71,6 +71,7 @@ fun GameDetailScreen(league: League, eventId: String, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
+                colors = scorelineTopBarColors(),
                 title = { Text(polled.state.data?.game?.matchup ?: "Game") },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }

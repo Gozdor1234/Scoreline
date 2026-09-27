@@ -47,6 +47,13 @@ class Favorites private constructor(context: Context) {
     var pinnedCfb by mutableStateOf(prefs.getString(KEY_PIN_CFB, null))
         private set
 
+    /** Master switch for the custom palette. Colors are kept when it's off. */
+    var customColorsOn by mutableStateOf(prefs.getBoolean(KEY_CUSTOM_ON, false))
+        private set
+    /** ARGB per ColorSlot; a missing slot means "use the theme's color". */
+    var customColors by mutableStateOf(readCustom())
+        private set
+
     fun pinned(league: League): String? = if (league == League.NFL) pinnedNfl else pinnedCfb
 
     fun isFavTeam(league: League, id: String) = "${league.name}:$id" in teams
@@ -89,6 +96,24 @@ class Favorites private constructor(context: Context) {
         prefs.edit().putString(if (league == League.NFL) KEY_PIN_NFL else KEY_PIN_CFB, next).apply()
     }
 
+    fun updateCustomColorsOn(on: Boolean) { customColorsOn = on; prefs.edit().putBoolean(KEY_CUSTOM_ON, on).apply() }
+    fun updateCustomColor(slot: ColorSlot, argb: Int?) {
+        customColors = if (argb == null) customColors - slot else customColors + (slot to argb)
+        val e = prefs.edit()
+        if (argb == null) e.remove(KEY_CUSTOM_PREFIX + slot.key) else e.putInt(KEY_CUSTOM_PREFIX + slot.key, argb)
+        e.apply()
+    }
+    fun resetCustomColors() {
+        customColors = emptyMap()
+        val e = prefs.edit()
+        ColorSlot.entries.forEach { e.remove(KEY_CUSTOM_PREFIX + it.key) }
+        e.apply()
+    }
+
+    private fun readCustom(): Map<ColorSlot, Int> = ColorSlot.entries
+        .filter { prefs.contains(KEY_CUSTOM_PREFIX + it.key) }
+        .associateWith { prefs.getInt(KEY_CUSTOM_PREFIX + it.key, 0) }
+
     private fun parseOrder(raw: String?): List<Int> {
         val parsed = raw?.split(',')?.mapNotNull { it.trim().toIntOrNull() } ?: emptyList()
         // Accept only a full permutation of 0..3; anything else falls back to the default order.
@@ -115,6 +140,8 @@ class Favorites private constructor(context: Context) {
         private const val KEY_CFB_VIEW = "cfb_view"
         private const val KEY_PIN_NFL = "pin_nfl"
         private const val KEY_PIN_CFB = "pin_cfb"
+        private const val KEY_CUSTOM_ON = "custom_colors_on"
+        private const val KEY_CUSTOM_PREFIX = "custom_color_"
 
         @Volatile private var instance: Favorites? = null
         fun get(context: Context): Favorites =

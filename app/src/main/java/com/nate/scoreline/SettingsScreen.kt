@@ -35,6 +35,11 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarDefaults
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -58,6 +63,33 @@ fun SettingsScreen(modifier: Modifier, open: (Route) -> Unit) {
     val ctx = LocalContext.current
     val fav = Favorites.get(ctx)
     var permDenied by rememberSaveable { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<ColorSlot?>(null) }
+
+    // What each area looks like right now (theme color, or the custom one), for swatches and checks.
+    val cs = MaterialTheme.colorScheme
+    val extra = LocalExtraColors.current
+    val barColor = extra.bar ?: NavigationBarDefaults.containerColor
+    val shown: Map<ColorSlot, Color> = mapOf(
+        ColorSlot.Background to cs.background,
+        ColorSlot.Cards to cs.surfaceContainerHighest,
+        ColorSlot.Accent to cs.primary,
+        ColorSlot.Highlight to cs.secondaryContainer,
+        ColorSlot.Text to cs.onSurface,
+        ColorSlot.SubText to cs.onSurfaceVariant,
+        ColorSlot.Lines to cs.outlineVariant,
+        ColorSlot.Bars to barColor,
+        ColorSlot.Live to LiveRed,
+    )
+    val issues = if (!fav.customColorsOn) emptyList() else ContrastCheck.issues(
+        listOf(
+            Triple("Main text on Background", cs.onSurface.toArgb() to cs.background.toArgb(), 4.5),
+            Triple("Main text on Cards", cs.onSurface.toArgb() to cs.surfaceContainerHighest.toArgb(), 4.5),
+            Triple("Main text on Favorites highlight", cs.onSurface.toArgb() to cs.secondaryContainer.toArgb(), 4.5),
+            Triple("Secondary text on Background", cs.onSurfaceVariant.toArgb() to cs.background.toArgb(), 3.0),
+            Triple("Accent on Background", cs.primary.toArgb() to cs.background.toArgb(), 3.0),
+            Triple("Live color on Cards", LiveRed.toArgb() to cs.surfaceContainerHighest.toArgb(), 3.0),
+        ),
+    )
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
@@ -156,6 +188,48 @@ fun SettingsScreen(modifier: Modifier, open: (Route) -> Unit) {
         }
         item { Hint("System follows your phone's light/dark setting. AMOLED is dark mode with pure black backgrounds.") }
 
+        item { SectionHeader("Custom colors") }
+        item { SwitchRow("Use custom colors", fav.customColorsOn) { fav.updateCustomColorsOn(it) } }
+        item {
+            Hint(
+                "Pick your own color for each part of the app. Custom colors sit on top of the theme above; " +
+                    "anything left on Default keeps the theme's color. Turning this off keeps your picks for later.",
+            )
+        }
+        if (fav.customColorsOn) {
+            ColorSlot.entries.forEach { slot ->
+                item {
+                    ColorSlotRow(slot, shown[slot] ?: Color.Gray, isCustom = slot in fav.customColors) { editing = slot }
+                }
+            }
+            if (issues.isNotEmpty()) {
+                item {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                        Text(
+                            "Hard to read",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        issues.forEach { i ->
+                            Text(
+                                "${i.message}: contrast ${"%.1f".format(i.ratio)}:1 (aim for at least 4.5:1 for text)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                }
+            }
+            if (fav.customColors.isNotEmpty()) {
+                item {
+                    TextButton(onClick = { fav.resetCustomColors() }, modifier = Modifier.padding(horizontal = 8.dp)) {
+                        Text("Reset all colors to default")
+                    }
+                }
+            }
+        }
+
         item { SectionHeader("About") }
         item {
             Hint(
@@ -164,6 +238,20 @@ fun SettingsScreen(modifier: Modifier, open: (Route) -> Unit) {
             )
         }
         item { Spacer(Modifier.padding(24.dp)) }
+    }
+
+    editing?.let { slot ->
+        // key(): a fresh picker (and fresh starting color) for each area.
+        key(slot) {
+            ColorPickerDialog(
+                title = slot.label,
+                initial = (shown[slot] ?: Color.Gray).toArgb(),
+                isCustom = slot in fav.customColors,
+                onApply = { fav.updateCustomColor(slot, it); editing = null },
+                onReset = { fav.updateCustomColor(slot, null); editing = null },
+                onDismiss = { editing = null },
+            )
+        }
     }
 }
 
@@ -205,6 +293,7 @@ private fun PickerScaffold(title: String, onBack: () -> Unit, content: @Composab
     Scaffold(
         topBar = {
             TopAppBar(
+                colors = scorelineTopBarColors(),
                 title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
