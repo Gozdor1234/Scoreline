@@ -41,7 +41,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -147,7 +149,6 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
                 label = { Text("My teams") },
                 leadingIcon = if (mineOnly) { { Icon(Icons.Filled.Favorite, null) } } else null,
             )
-            IconButton(onClick = polled.refresh) { Icon(Icons.Filled.Refresh, contentDescription = "Refresh") }
         }
         if (cfb) CollegeViewRow(fav, view)
 
@@ -179,6 +180,18 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
                 }
             },
         ) {
+        // Pull down on the list to refresh. The spinner shows until the fetch finishes.
+        // Every fetch step publishes a new state object, so the spinner stays up until
+        // the state has moved past the one seen at pull time and is no longer loading.
+        var pulledFrom by remember { mutableStateOf<Any?>(null) }
+        val st = polled.state
+        val pulling = pulledFrom != null && (st === pulledFrom || st.loading)
+        LaunchedEffect(pulling) { if (!pulling) pulledFrom = null }
+        PullToRefreshBox(
+            isRefreshing = pulling,
+            onRefresh = { pulledFrom = st; polled.refresh() },
+            modifier = Modifier.fillMaxSize(),
+        ) {
         LoadableContent(polled) { data ->
             val sb = data.board
             val favIds = fav.favTeamIds(league)
@@ -191,6 +204,8 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
             val pinnedGames = arrange(sb.games.filter { it.id in data.pinnedIds })
             val games = arrange(sb.games.filter { it.id !in data.pinnedIds && (view != "top25" || ranked(it)) })
             if (games.isEmpty() && pinnedGames.isEmpty()) {
+                // Scrollable so a pull still works on an empty week.
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 Message(
                     when {
                         mineOnly -> "None of your teams play this week.\nAdd teams under Settings."
@@ -198,6 +213,7 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
                         else -> "No games this week."
                     },
                 )
+                }
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(12.dp),
@@ -219,6 +235,7 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
                     }
                 }
             }
+        }
         }
             // Size readout while pinching.
             if (pinching) {
