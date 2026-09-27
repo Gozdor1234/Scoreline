@@ -145,7 +145,8 @@ fun GameDetailScreen(league: League, eventId: String, onBack: () -> Unit, open: 
                         2 -> if (d.scoring.isEmpty()) {
                             item { EmptyNote("No scoring plays yet.") }
                         } else {
-                            items(d.scoring) { p -> ScoringRow(p, g) }
+                            // Newest scoring play first; scroll down for earlier ones.
+                            items(d.scoring.asReversed()) { p -> ScoringRow(p, g) }
                         }
 
                         else -> if (d.drives.isEmpty()) {
