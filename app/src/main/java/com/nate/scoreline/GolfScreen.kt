@@ -1,0 +1,509 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
+package com.nate.scoreline
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+private const val GOLF_LIVE_MS = 60_000L
+
+// ---------------------------------------------------------------- Golf tab
+
+@Composable
+fun GolfScreen(modifier: Modifier, open: (Route) -> Unit) {
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val nowP = rememberPolled<GolfNow>("golf-now", { n -> if (n?.state == "in") GOLF_LIVE_MS else IDLE_MS }) { Golf.now() }
+    Column(modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = tab) {
+            listOf("Leaderboard", "Schedule").forEachIndexed { i, t -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) }) }
+        }
+        LoadableContent(nowP) { now ->
+            if (tab == 0) GolfHome(now, open) else GolfSchedule(now, open)
+        }
+    }
+}
+
+@Composable
+private fun GolfHome(now: GolfNow, open: (Route) -> Unit) {
+    // Team events (Ryder/Presidents Cup) have no individual leaderboard: show the team score,
+    // then the most recent stroke-play tournament underneath.
+    val (_, done) = Golf.splitCalendar(now.calendar, Instant.now())
+    val lbId = if (!now.teamEvent) now.eventId.ifEmpty { null } else done.firstOrNull { it.id != now.eventId }?.id
+    LeaderboardList(
+        eventId = lbId,
+        open = open,
+        showHeader = true,
+        before = if (now.teamEvent) {
+            {
+                item { TeamEventCard(now) }
+                item { ListTitle("Most recent tournament") }
+            }
+        } else null,
+    )
+}
+
+@Composable
+private fun TeamEventCard(now: GolfNow) {
+    Card(Modifier.fillMaxWidth().padding(12.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(now.eventName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                if (now.state == "in") LiveBadge()
+            }
+            if (now.statusDetail.isNotBlank()) {
+                Text(now.statusDetail, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            now.teams.forEach { t ->
+                Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Logo(t.logo, 28.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(t.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    Text(t.score, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                }
+            }
+            Text(
+                "Team match play: individual matches aren't shown.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ListTitle(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
+    )
+}
+
+/** Loads one tournament's leaderboard (null id = ESPN's default) and lists it. */
+@Composable
+private fun LeaderboardList(
+    eventId: String?,
+    open: (Route) -> Unit,
+    showHeader: Boolean,
+    before: (LazyListScope.() -> Unit)? = null,
+) {
+    val p = rememberPolled<GolfTournament?>("golf-lb-${eventId ?: "default"}", { t -> if (t?.state == "in") GOLF_LIVE_MS else IDLE_MS }) {
+        Golf.tournament(eventId)
+    }
+    val s = p.state
+    if (s.data == null && !s.loading && s.error == null) {
+        LazyColumn {
+            before?.invoke(this)
+            item { InlineNote("No leaderboard for this event yet.") }
+        }
+        return
+    }
+    LoadableContent(p) { t ->
+        if (t == null) return@LoadableContent
+        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+            before?.invoke(this)
+            if (showHeader) item { TournamentHeader(t) { open(Route.GolfEvent(t.id)) } }
+            leaderboardItems(t, open)
+        }
+    }
+}
+
+private fun LazyListScope.leaderboardItems(t: GolfTournament, open: (Route) -> Unit) {
+    if (t.entries.isEmpty()) {
+        item { InlineNote(if (t.state == "pre") "The field and tee times haven't been posted yet." else "No leaderboard yet.") }
+        return
+    }
+    item { LeaderboardHeaderRow() }
+    val firstOut = t.entries.indexOfFirst { it.outStatus.isNotEmpty() }
+    t.entries.forEachIndexed { i, e ->
+        if (i == firstOut) item(key = "cutline") { ListTitle("Missed cut / withdrawn") }
+        item(key = "g-${e.athleteId}-$i") {
+            GolferRow(e) { if (e.athleteId.isNotEmpty()) open(Route.Golfer(e.athleteId)) }
+        }
+    }
+}
+
+private val dayFmt = DateTimeFormatter.ofPattern("MMM d")
+
+/** "Aug 27 – 30" or "Aug 30 – Sep 2" in the phone's time zone. */
+fun golfDates(start: String, end: String): String {
+    val z = ZoneId.systemDefault()
+    val s = Golf.instant(start)?.atZone(z) ?: return ""
+    val e = Golf.instant(end)?.atZone(z)
+    return when {
+        e == null || e.toLocalDate() == s.toLocalDate() -> s.format(dayFmt)
+        e.month == s.month -> "${s.format(dayFmt)} – ${e.dayOfMonth}"
+        else -> "${s.format(dayFmt)} – ${e.format(dayFmt)}"
+    }
+}
+
+@Composable
+private fun TournamentHeader(t: GolfTournament, onClick: () -> Unit) {
+    Card(Modifier.fillMaxWidth().padding(12.dp).clickable(onClick = onClick)) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(t.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f, fill = false))
+                    if (t.state == "in") { Spacer(Modifier.width(8.dp)); LiveBadge() }
+                }
+                Text(
+                    listOf(t.statusDetail, golfDates(t.start, t.end)).filter { it.isNotBlank() }.joinToString("  ·  "),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text("Tournament info", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+        }
+    }
+}
+
+@Composable
+private fun LeaderboardHeaderRow() {
+    val st = MaterialTheme.typography.labelSmall
+    val c = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Text("POS", Modifier.width(42.dp), style = st, color = c)
+        Text("PLAYER", Modifier.weight(1f), style = st, color = c)
+        Text("TO PAR", Modifier.width(54.dp), textAlign = TextAlign.End, style = st, color = c)
+        Text("TODAY", Modifier.width(50.dp), textAlign = TextAlign.End, style = st, color = c)
+        Text("THRU", Modifier.width(62.dp), textAlign = TextAlign.End, style = st, color = c)
+    }
+}
+
+/** Under par shows in the live color (red), like TV leaderboards. */
+@Composable
+private fun parColor(score: String) =
+    if (score.startsWith("-")) LiveRed else MaterialTheme.colorScheme.onSurface
+
+@Composable
+private fun GolferRow(e: GolfEntry, onClick: () -> Unit) {
+    val out = e.outStatus.isNotEmpty()
+    Column {
+        Row(
+            Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(e.position, Modifier.width(42.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
+                color = if (out) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (e.flag.isNotBlank()) { Logo(e.flag, 16.dp); Spacer(Modifier.width(6.dp)) }
+                    Text(e.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        color = if (out) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                }
+                if (e.rounds.isNotEmpty()) {
+                    Text(
+                        e.rounds.joinToString("  "),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Text(e.toPar, Modifier.width(54.dp), textAlign = TextAlign.End, style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold, color = if (out) MaterialTheme.colorScheme.onSurfaceVariant else parColor(e.toPar))
+            Text(e.today, Modifier.width(50.dp), textAlign = TextAlign.End, style = MaterialTheme.typography.bodyMedium, color = parColor(e.today))
+            Text(e.thru, Modifier.width(62.dp), textAlign = TextAlign.End, style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        }
+        HorizontalDivider()
+    }
+}
+
+@Composable
+private fun GolfSchedule(now: GolfNow, open: (Route) -> Unit) {
+    val (upcoming, done) = Golf.splitCalendar(now.calendar, Instant.now())
+    if (now.calendar.isEmpty()) {
+        Message("No schedule published.")
+        return
+    }
+    LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+        if (upcoming.isNotEmpty()) {
+            item { ListTitle("This week & upcoming") }
+            items(upcoming, key = { "u-${it.id}" }) { c -> ScheduleRow(c, live = c.id == now.eventId && now.state == "in") { open(Route.GolfEvent(c.id)) } }
+        }
+        if (done.isNotEmpty()) {
+            item { ListTitle("Completed") }
+            items(done, key = { "d-${it.id}" }) { c -> ScheduleRow(c, live = false) { open(Route.GolfEvent(c.id)) } }
+        }
+    }
+}
+
+@Composable
+private fun ScheduleRow(c: GolfCalendarItem, live: Boolean, onClick: () -> Unit) {
+    Column {
+        Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(c.label, style = MaterialTheme.typography.bodyLarge, fontWeight = if (live) FontWeight.Bold else FontWeight.Normal)
+                Text(golfDates(c.start, c.end), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (live) LiveBadge()
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        HorizontalDivider()
+    }
+}
+
+// ---------------------------------------------------------------- tournament page
+
+@Composable
+fun GolfEventScreen(eventId: String, onBack: () -> Unit, open: (Route) -> Unit) {
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val p = rememberPolled<GolfTournament?>("golf-ev-$eventId", { t -> if (t?.state == "in") GOLF_LIVE_MS else IDLE_MS }) {
+        Golf.tournament(eventId)
+    }
+    val t = p.state.data
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(t?.name ?: "Tournament", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                colors = scorelineTopBarColors(),
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
+            )
+        },
+    ) { pad ->
+        Column(Modifier.padding(pad).fillMaxSize()) {
+            TabRow(selectedTabIndex = tab) {
+                listOf("Info", "Leaderboard").forEachIndexed { i, s -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(s) }) }
+            }
+            val st = p.state
+            when {
+                st.data == null && !st.loading && st.error == null ->
+                    Message("No details for this event. Team events like the Ryder Cup and Presidents Cup don't have an individual leaderboard.")
+                else -> LoadableContent(p) { tour ->
+                    if (tour == null) return@LoadableContent
+                    LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                        if (tab == 0) item { TournamentInfo(tour) } else leaderboardItems(tour, open)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TournamentInfo(t: GolfTournament) {
+    val leader = t.entries.firstOrNull { it.outStatus.isEmpty() }
+    val rows = listOf(
+        "Status" to t.statusDetail,
+        "Dates" to golfDates(t.start, t.end),
+        "Round" to if (t.currentRound > 0) "${t.currentRound} of ${t.rounds}" else "${t.rounds} rounds",
+        "Purse" to t.purse,
+        "Major" to if (t.major) "Yes" else "",
+        "Defending champion" to t.defendingChampion,
+        (if (t.state == "post") "Winner" else "Leader") to (leader?.let { "${it.name} (${it.toPar})" } ?: ""),
+        "Cut line" to if (t.cutRound > 0 && t.cutScore.isNotBlank()) "${t.cutScore} after round ${t.cutRound}" else "",
+        "Made the cut" to if (t.cutCount > 0) "${t.cutCount} players" else "",
+        "Field" to if (t.entries.isNotEmpty()) "${t.entries.size} players" else "",
+    ).filter { it.second.isNotBlank() }
+    Column {
+        Card(Modifier.fillMaxWidth().padding(12.dp)) {
+            Column(Modifier.background(teamFade(null)).padding(vertical = 4.dp)) {
+                rows.forEachIndexed { i, (k, v) ->
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                        Text(k, Modifier.width(140.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(v, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    }
+                    if (i < rows.lastIndex) HorizontalDivider()
+                }
+            }
+        }
+        InlineNote("Course details (par, yardage, hole layout) aren't included in ESPN's golf data.")
+    }
+}
+
+// ---------------------------------------------------------------- golfer page
+
+@Composable
+fun GolferScreen(athleteId: String, onBack: () -> Unit, open: (Route) -> Unit) {
+    val gP = rememberPolled<Golfer>("golfer-$athleteId", { 30 * 60_000L }) { Golf.golfer(athleteId) }
+    val oP = rememberPolled<GolferOverview>("golfer-ov-$athleteId", { 15 * 60_000L }) { Golf.golferOverview(athleteId) }
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(gP.state.data?.name ?: "Golfer") },
+                colors = scorelineTopBarColors(),
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
+            )
+        },
+    ) { pad ->
+        Box(Modifier.padding(pad).fillMaxSize()) {
+            LoadableContent(gP) { g ->
+                LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                    item { GolferHeader(g) }
+                    if (g.summary.isNotEmpty()) item { GolferStrip(g) }
+                    item {
+                        TabRow(selectedTabIndex = tab, modifier = Modifier.padding(top = 8.dp)) {
+                            listOf("Stats", "Results", "Bio").forEachIndexed { i, s -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(s) }) }
+                        }
+                    }
+                    val ov = oP.state.data
+                    when (tab) {
+                        0 -> when {
+                            ov == null && oP.state.error != null -> item { InlineNote("Couldn't load stats.") }
+                            ov == null -> item { InlineLoading() }
+                            ov.rows.isEmpty() -> item { InlineNote("No stats this season yet.") }
+                            else -> item {
+                                StatGrid(
+                                    title = ov.seasonTitle,
+                                    firstHeader = "",
+                                    labels = ov.labels,
+                                    rows = ov.rows,
+                                    firstWidth = 96.dp,
+                                    cellWidth = 64.dp,
+                                )
+                            }
+                        }
+                        1 -> when {
+                            ov == null && oP.state.error != null -> item { InlineNote("Couldn't load results.") }
+                            ov == null -> item { InlineLoading() }
+                            ov.recent.isEmpty() -> item { InlineNote("No recent tournaments.") }
+                            else -> items(ov.recent, key = { "r-${it.eventId}-${it.date}" }) { r ->
+                                ResultRow(r) { if (r.eventId.isNotEmpty()) open(Route.GolfEvent(r.eventId)) }
+                            }
+                        }
+                        else -> item { GolferBio(g) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GolferHeader(g: Golfer) {
+    Row(Modifier.fillMaxWidth().background(teamFade(null)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Headshot(g.headshot.ifEmpty { "https://a.espncdn.com/i/headshots/golf/players/full/${g.id}.png" }, 96.dp)
+        Spacer(Modifier.width(16.dp))
+        Column {
+            Text(g.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                if (g.flag.isNotBlank()) { Logo(g.flag, 18.dp); Spacer(Modifier.width(6.dp)) }
+                Text(g.country, style = MaterialTheme.typography.bodyMedium)
+            }
+            val line = listOf(
+                if (g.age.isNotBlank()) "Age ${g.age}" else "",
+                if (g.turnedPro.isNotBlank()) "Pro since ${g.turnedPro}" else "",
+            ).filter { it.isNotBlank() }.joinToString("  ·  ")
+            if (line.isNotBlank()) Text(line, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun GolferStrip(g: Golfer) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp), colors = CardDefaults.cardColors()) {
+        Column {
+            Text(
+                g.summaryTitle.ifBlank { "Season" }.uppercase(),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primary).padding(vertical = 6.dp),
+            )
+            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                g.summary.take(4).forEach { s ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(s.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(s.value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        if (s.rank.isNotBlank()) Text(s.rank, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ResultRow(r: GolferResult, onClick: () -> Unit) {
+    Column {
+        Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(r.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                val sub = listOf(
+                    golfDates(r.date, r.date),
+                    r.rounds.joinToString("-") + if (r.total.isNotBlank()) " (${r.total})" else "",
+                ).filter { it.isNotBlank() }.joinToString("  ·  ")
+                Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(if (r.position.isNotBlank()) r.position else "–", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(r.toPar, style = MaterialTheme.typography.labelMedium, color = parColor(r.toPar))
+            }
+        }
+        HorizontalDivider()
+    }
+}
+
+@Composable
+private fun GolferBio(g: Golfer) {
+    val rows = listOf(
+        "Country" to g.country,
+        "Age" to g.age,
+        "Birthdate" to g.birthDate,
+        "Birthplace" to g.birthPlace,
+        "College" to g.college,
+        "Turned pro" to g.turnedPro,
+        "Height" to g.height,
+        "Weight" to g.weight,
+        "Plays" to if (g.hand.isNotBlank()) "${g.hand}-handed" else "",
+    ).filter { it.second.isNotBlank() }
+    Card(Modifier.fillMaxWidth().padding(12.dp)) {
+        Column(Modifier.padding(vertical = 4.dp)) {
+            rows.forEachIndexed { i, (k, v) ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    Text(k, Modifier.width(110.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(v, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                }
+                if (i < rows.lastIndex) HorizontalDivider()
+            }
+        }
+    }
+}

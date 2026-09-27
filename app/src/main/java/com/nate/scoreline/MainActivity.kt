@@ -9,7 +9,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -32,6 +31,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 
 class MainActivity : ComponentActivity() {
     /** A game to open, set when the app is launched from a widget row. */
@@ -65,14 +65,18 @@ sealed interface Route {
     data class TeamPicker(val league: League) : Route
     data class Team(val league: League, val teamId: String) : Route
     data class Player(val league: League, val athleteId: String) : Route
+    data class GolfEvent(val eventId: String) : Route
+    data class Golfer(val athleteId: String) : Route
     data object DriverPicker : Route
 }
 
-private data class TabDef(val label: String, val icon: ImageVector)
+/** A bottom-bar tab: either a Material icon or one of the app's own single-color drawables. */
+private data class TabDef(val label: String, val icon: ImageVector? = null, val drawable: Int = 0)
 
 private val tabs = listOf(
     TabDef("Scores", Icons.Filled.Home),
-    TabDef("F1", Icons.Filled.DateRange),
+    TabDef("F1", drawable = R.drawable.ic_nav_f1),
+    TabDef("Golf", drawable = R.drawable.ic_nav_golf),
     TabDef("Standings", Icons.AutoMirrored.Filled.List),
     TabDef("Settings", Icons.Filled.Settings),
 )
@@ -101,6 +105,8 @@ fun App(pendingRoute: MutableState<Route?>) {
         is Route.GameDetail -> GameDetailScreen(top.league, top.eventId, onBack = back, open = open)
         is Route.Team -> TeamScreen(top.league, top.teamId, onBack = back, open = open)
         is Route.Player -> PlayerScreen(top.league, top.athleteId, onBack = back, open = open)
+        is Route.GolfEvent -> GolfEventScreen(top.eventId, onBack = back, open = open)
+        is Route.Golfer -> GolferScreen(top.athleteId, onBack = back, open = open)
         is Route.TeamPicker -> TeamPickerScreen(top.league, onBack = back)
         Route.DriverPicker -> DriverPickerScreen(onBack = back)
         null -> holder.SaveableStateProvider("tabs") {
@@ -113,7 +119,10 @@ fun App(pendingRoute: MutableState<Route?>) {
                         NavigationBarItem(
                             selected = tab == i,
                             onClick = { tab = i },
-                            icon = { Icon(t.icon, contentDescription = null) },
+                            icon = {
+                                if (t.icon != null) Icon(t.icon, contentDescription = null)
+                                else Icon(painterResource(t.drawable), contentDescription = null)
+                            },
                             label = { Text(t.label) },
                             colors = if (onBar == null) NavigationBarItemDefaults.colors()
                             else NavigationBarItemDefaults.colors(
@@ -130,7 +139,8 @@ fun App(pendingRoute: MutableState<Route?>) {
             when (tab) {
                 0 -> ScoresScreen(m, open)
                 1 -> F1Screen(m)
-                2 -> StandingsScreen(m)
+                2 -> GolfScreen(m, open)
+                3 -> StandingsScreen(m)
                 else -> SettingsScreen(m, open)
             }
           }

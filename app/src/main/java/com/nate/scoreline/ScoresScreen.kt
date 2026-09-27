@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -144,6 +145,8 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
         // Pinch on the list to resize cards. Two-finger gestures are handled here; one finger still scrolls.
         var zoom by remember { mutableFloatStateOf(fav.scoresZoom) }
         var pinching by remember { mutableStateOf(false) }
+        // Fully zoomed out: two columns of cards. Any zoom in goes back to one column.
+        val twoCol = zoom <= Favorites.ZOOM_MIN + 0.001f
         Box(
             Modifier.weight(1f).fillMaxWidth().pointerInput(Unit) {
                 awaitEachGesture {
@@ -193,14 +196,10 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
                 ) {
                     if (pinnedGames.isNotEmpty()) {
                         item { ListLabel("★ Pinned: ${Conferences.name(pinId)}") }
-                        items(pinnedGames, key = { it.id }) { g ->
-                            Zoomed(zoom) { GameCard(g, isFav(g)) { open(Route.GameDetail(league, g.id)) } }
-                        }
+                        gameItems(pinnedGames, twoCol, zoom) { g -> GameCard(g, isFav(g)) { open(Route.GameDetail(league, g.id)) } }
                         if (games.isNotEmpty()) item { ListLabel(if (view == "top25") "Top 25" else "All FBS") }
                     }
-                    items(games, key = { it.id }) { g ->
-                        Zoomed(zoom) { GameCard(g, isFav(g)) { open(Route.GameDetail(league, g.id)) } }
-                    }
+                    gameItems(games, twoCol, zoom) { g -> GameCard(g, isFav(g)) { open(Route.GameDetail(league, g.id)) } }
                     item {
                         Text(
                             agoText(polled.state.updatedAt),
@@ -220,12 +219,26 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp),
                 ) {
                     Text(
-                        "${Math.round(zoom * 100)}%",
+                        "${Math.round(zoom * 100)}%" + if (twoCol) "  ·  2 columns" else "",
                         color = MaterialTheme.colorScheme.inverseOnSurface,
                         style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                     )
                 }
+            }
+        }
+    }
+}
+
+/** Game cards, one per row, or two side by side when fully zoomed out. */
+private fun LazyListScope.gameItems(games: List<Game>, twoCol: Boolean, zoom: Float, card: @Composable (Game) -> Unit) {
+    if (!twoCol) {
+        items(games, key = { it.id }) { g -> Zoomed(zoom) { card(g) } }
+    } else {
+        items(games.chunked(2), key = { "pair-${it.first().id}" }) { pair ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                pair.forEach { g -> Box(Modifier.weight(1f)) { Zoomed(zoom) { card(g) } } }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }

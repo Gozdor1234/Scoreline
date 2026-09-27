@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bottom-bar golf icon: pin and flag on the green, single color (tinted by the nav bar). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FF000000" android:pathData="M7,2.5h1.7v15.2H7z M8.7,2.8l8.3,3.1l-8.3,3.4z M2.5,20.4c0,-1.5 2.9,-2.6 6.5,-2.6s6.5,1.1 6.5,2.6s-2.9,2.1 -6.5,2.1s-6.5,-0.6 -6.5,-2.1z" />
+</vector>
