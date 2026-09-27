@@ -144,3 +144,32 @@ object F1 {
             )
         }
 }
+
+/**
+ * Team badge styling. No free, stable source publishes F1 team logo images, so the app
+ * draws a badge in the team's color with a short code. Matching is by keyword so it
+ * tolerates Jolpica's naming ("Haas F1 Team", "RB F1 Team", "Alpine F1 Team"...).
+ */
+object F1Teams {
+    data class Style(val code: String, val color: Long)
+
+    private val styles = listOf(
+        listOf("mercedes") to Style("MER", 0xFF00A19C),
+        listOf("ferrari") to Style("FER", 0xFFE8002D),
+        listOf("mclaren") to Style("MCL", 0xFFFF8000),
+        listOf("racing bulls", "rb f1", "visa", "alphatauri") to Style("RB", 0xFF6692FF),
+        listOf("red bull") to Style("RBR", 0xFF3671C6),
+        listOf("aston") to Style("AMR", 0xFF229971),
+        listOf("alpine") to Style("ALP", 0xFF0093CC),
+        listOf("williams") to Style("WIL", 0xFF1868DB),
+        listOf("haas") to Style("HAA", 0xFF9C9FA2),
+        listOf("audi", "sauber", "kick") to Style("AUD", 0xFFBB0A30),
+        listOf("cadillac") to Style("CAD", 0xFF5A5A5A),
+    )
+
+    fun style(team: String): Style {
+        val t = team.lowercase()
+        return styles.firstOrNull { (keys, _) -> keys.any { it in t } }?.second
+            ?: Style(team.filter { it.isLetter() }.take(3).uppercase().ifEmpty { "F1" }, 0xFF6B7280)
+    }
+}

@@ -1,11 +1,33 @@
 package com.nate.scoreline
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.supervisorScope
 import org.json.JSONObject
 
-enum class League(val label: String, val path: String, val scoreboardParams: String, val regularWeeks: Int) {
-    NFL("NFL", "football/nfl", "", 18),
-    CFB("College", "football/college-football", "groups=80&limit=300", 16);
+enum class League(val label: String, val path: String, val defaultGroup: String?, val regularWeeks: Int) {
+    NFL("NFL", "football/nfl", null, 18),
     // groups=80 = all FBS games; without it ESPN only returns a curated subset.
+    CFB("College", "football/college-football", Conferences.FBS, 16);
+}
+
+/** ESPN group ids for FBS conferences (same ids in scoreboard and standings). */
+object Conferences {
+    const val FBS = "80"
+    val all: List<Pair<String, String>> = listOf(
+        "1" to "ACC",
+        "151" to "American",
+        "4" to "Big 12",
+        "5" to "Big Ten",
+        "12" to "C-USA",
+        "18" to "FBS Independents",
+        "15" to "MAC",
+        "17" to "Mountain West",
+        "9" to "Pac-12",
+        "8" to "SEC",
+        "37" to "Sun Belt",
+    )
+    fun name(id: String?): String = all.firstOrNull { it.first == id }?.second ?: "Conference"
 }
 
 data class TeamSide(
@@ -102,7 +124,7 @@ data class GameDetail(
 )
 
 data class StandingRow(val teamId: String, val name: String, val abbr: String, val logo: String, val cols: List<String>)
-data class StandingGroup(val title: String, val headers: List<String>, val rows: List<StandingRow>)
+data class StandingGroup(val id: String, val title: String, val headers: List<String>, val rows: List<StandingRow>)
 
 data class TeamRef(val league: League, val id: String, val name: String, val abbr: String, val logo: String)
 
@@ -110,9 +132,10 @@ object Espn {
     private const val SITE = "https://site.api.espn.com/apis/site/v2/sports"
     private const val V2 = "https://site.api.espn.com/apis/v2/sports"
 
-    fun scoreboardUrl(league: League, week: WeekInfo?): String {
+    fun scoreboardUrl(league: League, week: WeekInfo?, group: String? = league.defaultGroup): String {
         val params = mutableListOf<String>()
-        if (league.scoreboardParams.isNotEmpty()) params += league.scoreboardParams
+        if (group != null) params += "groups=$group"
+        if (league == League.CFB) params += "limit=300"
         if (week != null) {
             params += "seasontype=${week.seasonType}"
             params += "week=${week.week}"
@@ -120,16 +143,27 @@ object Espn {
         return "$SITE/${league.path}/scoreboard" + if (params.isEmpty()) "" else "?" + params.joinToString("&")
     }
 
-    suspend fun scoreboard(league: League, week: WeekInfo? = null): Scoreboard =
-        parseScoreboard(Net.getJson(scoreboardUrl(league, week)), league)
+    suspend fun scoreboard(league: League, week: WeekInfo? = null, group: String? = league.defaultGroup): Scoreboard =
+        parseScoreboard(Net.getJson(scoreboardUrl(league, week, group)), league)
 
     suspend fun summary(league: League, eventId: String): GameDetail =
         parseSummary(Net.getJson("$SITE/${league.path}/summary?event=$eventId"), league)
 
     suspend fun standings(league: League): List<StandingGroup> {
-        // level=3 asks for division-level groups (NFL); harmless where unsupported.
-        val q = if (league == League.NFL) "?level=3" else ""
-        return parseStandings(Net.getJson("$V2/${league.path}/standings$q"))
+        if (league == League.NFL) {
+            // level=3 asks for division-level groups.
+            return parseStandings(Net.getJson("$V2/${league.path}/standings?level=3"), league)
+        }
+        // College: ESPN's all-FBS standings response is huge and has come back partial, so ask for
+        // each conference separately (in parallel). One failed conference doesn't sink the rest.
+        val results = supervisorScope {
+            Conferences.all.map { (id, _) ->
+                async { runCatching { parseStandings(Net.getJson("$V2/${league.path}/standings?group=$id"), league, forceId = id) } }
+            }.awaitAll()
+        }
+        val groups = results.mapNotNull { it.getOrNull() }.flatten()
+        if (groups.isEmpty()) results.firstNotNullOfOrNull { it.exceptionOrNull() }?.let { throw it }
+        return groups
     }
 
     suspend fun teams(league: League): List<TeamRef> =
@@ -305,20 +339,29 @@ object Espn {
         return drives.sortedByDescending { dr -> dr.plays.firstOrNull()?.let { elapsed(it.period, it.clock) } ?: -1 }
     }
 
-    fun parseStandings(root: JSONObject): List<StandingGroup> {
+    /** forceId: the conference group we asked for, used as the id for single-group responses. */
+    fun parseStandings(root: JSONObject, league: League? = null, forceId: String? = null): List<StandingGroup> {
         val out = mutableListOf<StandingGroup>()
         fun walk(node: JSONObject) {
             val entries = node.obj("standings")?.arr("entries").objects()
-            if (entries.isNotEmpty()) out += buildGroup(node.str("name"), entries)
+            if (entries.isNotEmpty()) out += buildGroup(node.str("id"), node.str("name"), entries, league)
             node.arr("children").objects().forEach { walk(it) }
         }
         walk(root)
-        return out
+        // Pinning works by conference: every group in a per-conference response carries that conference's id.
+        return if (forceId != null) out.map { it.copy(id = forceId) } else out
     }
 
     private val standingHeaders = listOf("W-L", "Conf", "PF", "PA", "Strk")
 
-    private fun buildGroup(title: String, entries: List<JSONObject>): StandingGroup {
+    /** ESPN's logo CDN, for rows whose team object came without a logos array. */
+    fun fallbackLogo(league: League?, id: String, abbr: String): String = when {
+        league == League.NFL && abbr.isNotEmpty() -> "https://a.espncdn.com/i/teamlogos/nfl/500/${abbr.lowercase()}.png"
+        league == League.CFB && id.isNotEmpty() -> "https://a.espncdn.com/i/teamlogos/ncaa/500/$id.png"
+        else -> ""
+    }
+
+    private fun buildGroup(id: String, title: String, entries: List<JSONObject>, league: League?): StandingGroup {
         data class Tmp(val row: StandingRow, val seed: Int, val pct: Double)
         val tmps = entries.map { e ->
             val t = e.obj("team") ?: JSONObject()
@@ -336,7 +379,8 @@ object Espn {
                 teamId = t.str("id"),
                 name = t.str("displayName").ifEmpty { t.str("name") },
                 abbr = t.str("abbreviation"),
-                logo = t.arr("logos").objects().firstOrNull()?.str("href") ?: "",
+                logo = t.arr("logos").objects().firstOrNull()?.str("href")?.ifEmpty { null }
+                    ?: fallbackLogo(league, t.str("id"), t.str("abbreviation")),
                 cols = listOf(overall, dv("vs. Conf.", "vsConf"), dv("pointsFor"), dv("pointsAgainst"), dv("streak")),
             )
             val seed = byName("playoffSeed")?.optDouble("value", 0.0)?.toInt() ?: 0
@@ -350,6 +394,7 @@ object Espn {
         val rows = sorted.map { it.row }
         val keep = standingHeaders.indices.filter { i -> rows.any { it.cols[i].isNotBlank() } }
         return StandingGroup(
+            id = id,
             title = title,
             headers = keep.map { standingHeaders[it] },
             rows = rows.map { r -> r.copy(cols = keep.map { r.cols[it] }) },

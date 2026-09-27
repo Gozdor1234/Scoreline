@@ -2,6 +2,15 @@
 
 package com.nate.scoreline
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import kotlinx.coroutines.async
+import kotlinx.coroutines.supervisorScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -65,12 +74,31 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
     val setWeek: (WeekInfo?) -> Unit = { v -> weekCode = if (v == null) 0 else v.seasonType * 100 + v.week }
     var mineOnly by rememberSaveable { mutableStateOf(false) }
 
-    val polled = rememberPolled<Scoreboard>(
-        key = league to week,
-        intervalMs = { sb -> if (sb?.games?.any { it.isLive } == true) LIVE_MS else IDLE_MS },
-    ) { Espn.scoreboard(league, week) }
+    // College view: "top25" and "fbs" both load all FBS games (Top 25 filters by AP rank on the phone);
+    // a conference view asks ESPN for just that conference.
+    val cfb = league == League.CFB
+    val view = if (cfb) fav.cfbView else "fbs"
+    val group: String? = when {
+        !cfb -> null
+        view == "top25" || view == "fbs" -> Conferences.FBS
+        else -> view
+    }
+    val pinId = if (cfb) fav.pinnedCfb else null
+    val pinFetch = if (pinId != null && group != pinId) pinId else null
 
-    val shownWeek = week ?: polled.state.data?.week
+    val polled = rememberPolled<ScoresData>(
+        key = listOf(league, week, group, pinFetch),
+        intervalMs = { d -> if (d?.board?.games?.any { it.isLive } == true) LIVE_MS else IDLE_MS },
+    ) {
+        supervisorScope {
+            val main = async { Espn.scoreboard(league, week, group) }
+            // The pinned conference is a second, optional request; if it fails the main list still shows.
+            val pinned = pinFetch?.let { id -> async { runCatching { Espn.scoreboard(league, week, id) }.getOrNull() } }
+            ScoresData(main.await(), pinned?.await()?.games?.map { it.id }?.toSet() ?: emptySet())
+        }
+    }
+
+    val shownWeek = week ?: polled.state.data?.board?.week
 
     Column(modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = league.ordinal) {
@@ -97,21 +125,39 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
             )
             IconButton(onClick = polled.refresh) { Icon(Icons.Filled.Refresh, contentDescription = "Refresh") }
         }
+        if (cfb) CollegeViewRow(fav, view)
 
-        LoadableContent(polled) { sb ->
+        LoadableContent(polled) { data ->
+            val sb = data.board
             val favIds = fav.favTeamIds(league)
             fun isFav(g: Game) = g.home.id in favIds || g.away.id in favIds
             val stateOrder = mapOf("in" to 0, "pre" to 1, "post" to 2)
-            val games = sb.games
+            fun arrange(list: List<Game>) = list
                 .filter { !mineOnly || isFav(it) }
                 .sortedWith(compareBy<Game>({ if (isFav(it)) 0 else 1 }, { stateOrder[it.state] ?: 3 }, { it.date }))
-            if (games.isEmpty()) {
-                Message(if (mineOnly) "None of your teams play this week.\nAdd teams under Settings." else "No games this week.")
+            val ranked: (Game) -> Boolean = { it.away.rank != null || it.home.rank != null }
+            val pinnedGames = arrange(sb.games.filter { it.id in data.pinnedIds })
+            val games = arrange(sb.games.filter { it.id !in data.pinnedIds && (view != "top25" || ranked(it)) })
+            if (games.isEmpty() && pinnedGames.isEmpty()) {
+                Message(
+                    when {
+                        mineOnly -> "None of your teams play this week.\nAdd teams under Settings."
+                        view == "top25" -> "No ranked teams play this week."
+                        else -> "No games this week."
+                    },
+                )
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    if (pinnedGames.isNotEmpty()) {
+                        item { ListLabel("★ Pinned: ${Conferences.name(pinId)}") }
+                        items(pinnedGames, key = { it.id }) { g ->
+                            GameCard(g, isFav(g)) { open(Route.GameDetail(league, g.id)) }
+                        }
+                        if (games.isNotEmpty()) item { ListLabel(if (view == "top25") "Top 25" else "All FBS") }
+                    }
                     items(games, key = { it.id }) { g ->
                         GameCard(g, isFav(g)) { open(Route.GameDetail(league, g.id)) }
                     }
@@ -124,6 +170,76 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+data class ScoresData(val board: Scoreboard, val pinnedIds: Set<String>)
+
+@Composable
+private fun ListLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+    )
+}
+
+/** Top 25 / All FBS / conference chooser. The star next to each conference pins it to the top. */
+@Composable
+private fun CollegeViewRow(fav: Favorites, view: String) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val confView = view != "top25" && view != "fbs"
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FilterChip(selected = view == "top25", onClick = { fav.updateCfbView("top25") }, label = { Text("Top 25") })
+        FilterChip(selected = view == "fbs", onClick = { fav.updateCfbView("fbs") }, label = { Text("All FBS") })
+        Box {
+            FilterChip(
+                selected = confView,
+                onClick = { menuOpen = true },
+                label = { Text(if (confView) Conferences.name(view) else "Conference") },
+                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, null) },
+            )
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                Text(
+                    "Tap a conference to view it. Tap its star to pin it to the top.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).width(220.dp),
+                )
+                Conferences.all.forEach { (id, name) ->
+                    val pinned = fav.pinnedCfb == id
+                    DropdownMenuItem(
+                        text = { Text(name, fontWeight = if (view == id) FontWeight.Bold else FontWeight.Normal) },
+                        onClick = { fav.updateCfbView(id); menuOpen = false },
+                        trailingIcon = {
+                            IconButton(onClick = { fav.togglePin(League.CFB, id) }) {
+                                Icon(
+                                    Icons.Filled.Star,
+                                    contentDescription = if (pinned) "Unpin $name" else "Pin $name",
+                                    tint = if (pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                                )
+                            }
+                        },
+                    )
+                }
+            }
+        }
+        if (confView) {
+            val pinned = fav.pinnedCfb == view
+            IconButton(onClick = { fav.togglePin(League.CFB, view) }) {
+                Icon(
+                    Icons.Filled.Star,
+                    contentDescription = if (pinned) "Unpin conference" else "Pin conference to top",
+                    tint = if (pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                )
             }
         }
     }

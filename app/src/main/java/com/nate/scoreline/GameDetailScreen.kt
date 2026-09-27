@@ -28,8 +28,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -49,6 +47,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+private val sectionLabels = listOf("Team stats", "Players", "Scoring", "Play-by-play")
+
 private fun periodLabel(p: Int) = when {
     p in 1..4 -> "Q$p"
     p == 5 -> "OT"
@@ -63,7 +63,8 @@ fun GameDetailScreen(league: League, eventId: String, onBack: () -> Unit) {
         key = league to eventId,
         intervalMs = { d -> if (d?.game?.isLive == true) 20_000L else IDLE_MS },
     ) { Espn.summary(league, eventId) }
-    var section by rememberSaveable { mutableIntStateOf(0) }
+    // Opens on whichever tab you've dragged to the front.
+    var section by rememberSaveable { mutableIntStateOf(fav.tabOrder.first()) }
     var homeSide by rememberSaveable { mutableIntStateOf(0) }
     var collapsed by remember { mutableStateOf(setOf<String>()) } // drive ids the user has folded up
 
@@ -89,11 +90,14 @@ fun GameDetailScreen(league: League, eventId: String, onBack: () -> Unit) {
                         if (g.away.linescores.isNotEmpty() || g.home.linescores.isNotEmpty()) item { Linescore(g) }
                     }
                     item {
-                        ScrollableTabRow(selectedTabIndex = section, edgePadding = 8.dp, modifier = Modifier.padding(top = 8.dp)) {
-                            listOf("Team stats", "Players", "Scoring", "Play-by-play").forEachIndexed { i, s ->
-                                Tab(selected = section == i, onClick = { section = i }, text = { Text(s) })
-                            }
-                        }
+                        ReorderableTabRow(
+                            order = fav.tabOrder,
+                            label = { sectionLabels[it] },
+                            selected = section,
+                            onSelect = { section = it },
+                            onReorder = { fav.updateTabOrder(it) },
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
                     }
                     when (section) {
                         0 -> if (d.teamStats.isEmpty()) {

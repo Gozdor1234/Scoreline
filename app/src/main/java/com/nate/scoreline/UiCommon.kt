@@ -5,7 +5,11 @@ import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,6 +71,26 @@ private fun ColorScheme.toAmoled(): ColorScheme = copy(
     surfaceVariant = Color(0xFF1A1A1A),
 )
 
+/**
+ * Dark mode surfaces in slate gray-blue instead of near-black. Accent colors (from the phone
+ * palette or the defaults) are kept; only backgrounds, cards and outlines change.
+ */
+private fun ColorScheme.toGrayBlue(): ColorScheme = copy(
+    background = Color(0xFF1B2230),
+    surface = Color(0xFF1B2230),
+    surfaceDim = Color(0xFF161C28),
+    surfaceBright = Color(0xFF3A4556),
+    surfaceContainerLowest = Color(0xFF141A24),
+    surfaceContainerLow = Color(0xFF1F2735),
+    surfaceContainer = Color(0xFF232C3B),
+    surfaceContainerHigh = Color(0xFF2A3445),
+    surfaceContainerHighest = Color(0xFF313C4F),
+    surfaceVariant = Color(0xFF354154),
+    onSurfaceVariant = Color(0xFFBFC8D6),
+    outline = Color(0xFF8A94A6),
+    outlineVariant = Color(0xFF3F4A5C),
+)
+
 @Composable
 fun ScorelineTheme(content: @Composable () -> Unit) {
     val ctx = LocalContext.current
@@ -83,7 +107,11 @@ fun ScorelineTheme(content: @Composable () -> Unit) {
         dark -> darkColorScheme()
         else -> lightColorScheme()
     }
-    val scheme = if (mode == "amoled") base.toAmoled() else base
+    val scheme = when {
+        mode == "amoled" -> base.toAmoled()
+        dark -> base.toGrayBlue()
+        else -> base
+    }
 
     // Keep status/navigation bar icons readable when the app's mode differs from the phone's.
     val activity = ctx as? ComponentActivity
@@ -211,4 +239,23 @@ fun agoText(updatedAt: Long): String {
     if (updatedAt == 0L) return ""
     val s = (System.currentTimeMillis() - updatedAt) / 1000
     return if (s < 60) "Updated just now" else "Updated ${s / 60} min ago"
+}
+
+/** Round badge in an F1 team's color with its short code (see F1Teams). */
+@Composable
+fun TeamBadge(team: String, size: Dp = 26.dp) {
+    val st = F1Teams.style(team)
+    Box(
+        Modifier.size(size).clip(CircleShape).background(Color(st.color)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            st.code,
+            color = Color.White,
+            fontSize = (size.value * 0.33f).sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
 }

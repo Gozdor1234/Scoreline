@@ -4,6 +4,6 @@
     <style name="Theme.Scoreline" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/window_bg</item>
     </style>
-    <color name="window_bg">#FF101418</color>
+    <color name="window_bg">#FF1B2230</color>
     <color name="icon_bg">#FF0B3D2E</color>
 </resources>

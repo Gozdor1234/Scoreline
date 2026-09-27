@@ -10,7 +10,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
@@ -60,9 +64,24 @@ private fun TeamStandings(league: League) {
             Message("No standings published yet.")
             return@LoadableContent
         }
+        val pinId = fav.pinned(league)
+        // Pinned division/conference first; everything else keeps ESPN's order.
+        val ordered = groups.sortedBy { if (pinId != null && it.id == pinId) 0 else 1 }
         LazyColumn {
-            groups.forEach { grp ->
-                item { SectionHeader(grp.title) }
+            item {
+                Text(
+                    "Tap the star on a ${if (league == League.NFL) "division" else "conference"} to pin it to the top.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, top = 8.dp),
+                )
+            }
+            ordered.forEach { grp ->
+                item {
+                    PinHeader(grp.title, pinned = grp.id.isNotEmpty() && grp.id == pinId, canPin = grp.id.isNotEmpty()) {
+                        fav.togglePin(league, grp.id)
+                    }
+                }
                 item { StandingLine("Team", grp.headers, header = true, logo = "") }
                 items(grp.rows) { r ->
                     StandingLine(r.name, r.cols, logo = r.logo, highlight = fav.isFavTeam(league, r.teamId))
@@ -74,13 +93,41 @@ private fun TeamStandings(league: League) {
 }
 
 @Composable
+fun PinHeader(title: String, pinned: Boolean, canPin: Boolean = true, onToggle: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            title,
+            Modifier.weight(1f),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        if (pinned) {
+            Text("Pinned", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        }
+        if (canPin) {
+            IconButton(onClick = onToggle) {
+                Icon(
+                    Icons.Filled.Star,
+                    contentDescription = if (pinned) "Unpin" else "Pin to top",
+                    tint = if (pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun StandingLine(name: String, cols: List<String>, logo: String, header: Boolean = false, highlight: Boolean = false) {
     Column {
         Row(
             Modifier.fillMaxWidth().background(favTint(highlight)).padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (!header) { Logo(logo, 22.dp); Spacer(Modifier.width(8.dp)) }
+            if (!header) { Logo(logo, 22.dp); Spacer(Modifier.width(8.dp)) } else Spacer(Modifier.width(30.dp))
             Text(
                 name,
                 Modifier.weight(1f),
@@ -112,7 +159,7 @@ private fun DriverStandings() {
         LazyColumn {
             item { SimpleRow("Pos", "Driver", "Team", "Wins", "Pts", header = true) }
             items(rows) { r ->
-                SimpleRow(r.pos, r.name, r.team, r.wins, r.points, highlight = fav.isFavDriver(r.name))
+                SimpleRow(r.pos, r.name, r.team, r.wins, r.points, highlight = fav.isFavDriver(r.name), leading = { TeamBadge(r.team) })
             }
             item { SourceNote() }
         }
@@ -125,14 +172,23 @@ private fun ConstructorStandings() {
     LoadableContent(polled) { rows ->
         LazyColumn {
             item { SimpleRow("Pos", "Team", "", "Wins", "Pts", header = true) }
-            items(rows) { r -> SimpleRow(r.pos, r.team, "", r.wins, r.points) }
+            items(rows) { r -> SimpleRow(r.pos, r.team, "", r.wins, r.points, leading = { TeamBadge(r.team) }) }
             item { SourceNote() }
         }
     }
 }
 
 @Composable
-fun SimpleRow(pos: String, main: String, sub: String, a: String, b: String, header: Boolean = false, highlight: Boolean = false) {
+fun SimpleRow(
+    pos: String,
+    main: String,
+    sub: String,
+    a: String,
+    b: String,
+    header: Boolean = false,
+    highlight: Boolean = false,
+    leading: (@Composable () -> Unit)? = null,
+) {
     val style = if (header) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium
     val color = if (header) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
     Column {
@@ -141,6 +197,12 @@ fun SimpleRow(pos: String, main: String, sub: String, a: String, b: String, head
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(pos, Modifier.width(36.dp), style = style, color = color, fontWeight = FontWeight.SemiBold)
+            if (leading != null) {
+                leading()
+                Spacer(Modifier.width(10.dp))
+            } else if (header) {
+                Spacer(Modifier.width(36.dp)) // keep header columns aligned with badge rows
+            }
             Column(Modifier.weight(1f)) {
                 Text(main, style = style, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (sub.isNotBlank() && !header) {

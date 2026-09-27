@@ -159,6 +159,7 @@ private fun LastRaceView() {
                     a = r.grid,
                     b = r.points,
                     highlight = fav.isFavDriver(r.driver),
+                    leading = { TeamBadge(r.team) },
                 )
             }
             item { SourceNote() }
