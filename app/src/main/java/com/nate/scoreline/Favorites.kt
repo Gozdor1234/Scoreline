@@ -54,6 +54,10 @@ class Favorites private constructor(context: Context) {
     var customColors by mutableStateOf(readCustom())
         private set
 
+    /** Game-card size on the Scores list (pinch to change). 1.0 = normal. */
+    var scoresZoom by mutableStateOf(prefs.getFloat(KEY_ZOOM, 1f).coerceIn(ZOOM_MIN, ZOOM_MAX))
+        private set
+
     fun pinned(league: League): String? = if (league == League.NFL) pinnedNfl else pinnedCfb
 
     fun isFavTeam(league: League, id: String) = "${league.name}:$id" in teams
@@ -96,6 +100,10 @@ class Favorites private constructor(context: Context) {
         prefs.edit().putString(if (league == League.NFL) KEY_PIN_NFL else KEY_PIN_CFB, next).apply()
     }
 
+    fun updateScoresZoom(z: Float) {
+        scoresZoom = z.coerceIn(ZOOM_MIN, ZOOM_MAX)
+        prefs.edit().putFloat(KEY_ZOOM, scoresZoom).apply()
+    }
     fun updateCustomColorsOn(on: Boolean) { customColorsOn = on; prefs.edit().putBoolean(KEY_CUSTOM_ON, on).apply() }
     fun updateCustomColor(slot: ColorSlot, argb: Int?) {
         customColors = if (argb == null) customColors - slot else customColors + (slot to argb)
@@ -141,6 +149,9 @@ class Favorites private constructor(context: Context) {
         private const val KEY_PIN_NFL = "pin_nfl"
         private const val KEY_PIN_CFB = "pin_cfb"
         private const val KEY_CUSTOM_ON = "custom_colors_on"
+        private const val KEY_ZOOM = "scores_zoom"
+        const val ZOOM_MIN = 0.6f
+        const val ZOOM_MAX = 1.5f
         private const val KEY_CUSTOM_PREFIX = "custom_color_"
 
         @Volatile private var instance: Favorites? = null

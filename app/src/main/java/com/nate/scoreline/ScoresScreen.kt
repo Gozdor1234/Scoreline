@@ -3,6 +3,17 @@
 package com.nate.scoreline
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.res.painterResource
@@ -130,6 +141,32 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
         }
         if (cfb) CollegeViewRow(fav, view)
 
+        // Pinch on the list to resize cards. Two-finger gestures are handled here; one finger still scrolls.
+        var zoom by remember { mutableFloatStateOf(fav.scoresZoom) }
+        var pinching by remember { mutableStateOf(false) }
+        Box(
+            Modifier.weight(1f).fillMaxWidth().pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    var changed = false
+                    do {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        if (event.changes.count { it.pressed } >= 2) {
+                            pinching = true
+                            val z = event.calculateZoom()
+                            if (z != 1f) {
+                                zoom = (zoom * z).coerceIn(Favorites.ZOOM_MIN, Favorites.ZOOM_MAX)
+                                changed = true
+                            }
+                            // Consume so the list doesn't also scroll during the pinch.
+                            event.changes.forEach { it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                    pinching = false
+                    if (changed) fav.updateScoresZoom(zoom)
+                }
+            },
+        ) {
         LoadableContent(polled) { data ->
             val sb = data.board
             val favIds = fav.favTeamIds(league)
@@ -152,17 +189,17 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp * zoom),
                 ) {
                     if (pinnedGames.isNotEmpty()) {
                         item { ListLabel("★ Pinned: ${Conferences.name(pinId)}") }
                         items(pinnedGames, key = { it.id }) { g ->
-                            GameCard(g, isFav(g)) { open(Route.GameDetail(league, g.id)) }
+                            Zoomed(zoom) { GameCard(g, isFav(g)) { open(Route.GameDetail(league, g.id)) } }
                         }
                         if (games.isNotEmpty()) item { ListLabel(if (view == "top25") "Top 25" else "All FBS") }
                     }
                     items(games, key = { it.id }) { g ->
-                        GameCard(g, isFav(g)) { open(Route.GameDetail(league, g.id)) }
+                        Zoomed(zoom) { GameCard(g, isFav(g)) { open(Route.GameDetail(league, g.id)) } }
                     }
                     item {
                         Text(
@@ -175,7 +212,30 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
                 }
             }
         }
+            // Size readout while pinching.
+            if (pinching) {
+                Surface(
+                    color = MaterialTheme.colorScheme.inverseSurface,
+                    shape = RoundedCornerShape(50),
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp),
+                ) {
+                    Text(
+                        "${Math.round(zoom * 100)}%",
+                        color = MaterialTheme.colorScheme.inverseOnSurface,
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
     }
+}
+
+/** Draws content at a different size by scaling dp and sp together, so layout (not just pixels) shrinks or grows. */
+@Composable
+private fun Zoomed(scale: Float, content: @Composable () -> Unit) {
+    val d = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(d.density * scale, d.fontScale)) { content() }
 }
 
 data class ScoresData(val board: Scoreboard, val pinnedIds: Set<String>)
