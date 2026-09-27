@@ -44,6 +44,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.CardDefaults
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -253,8 +255,13 @@ private fun HeaderTeam(t: TeamSide, league: League, fav: Favorites, modifier: Mo
 private fun Linescore(g: Game) {
     val n = maxOf(g.away.linescores.size, g.home.linescores.size)
     val heads = (1..n).map { periodLabel(it) } + "T"
-    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-        Column(Modifier.padding(12.dp)) {
+    // Full-bleed band under the header: square corners, edge to edge.
+    Surface(
+        color = CardDefaults.cardColors().containerColor,
+        shape = RectangleShape,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             LineRow("", heads, header = true)
             LineRow(g.away.abbr, g.away.linescores + g.away.score)
             LineRow(g.home.abbr, g.home.linescores + g.home.score)
