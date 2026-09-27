@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write   # lets the build publish the APK as a Release
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -45,3 +48,14 @@ jobs:
           name: Scoreline-APK-${{ github.run_number }}
           path: Scoreline-*.apk
           retention-days: 30
+
+      # Also publish as a GitHub Release: a direct .apk download (no zip, no sign-in),
+      # always at https://github.com/<you>/<repo>/releases/latest
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "build-${{ github.run_number }}" "Scoreline-${{ github.run_number }}.apk" \
+            --title "Scoreline build ${{ github.run_number }}" \
+            --notes "Tap Scoreline-${{ github.run_number }}.apk below to download, then open it to install." \
+            --latest
