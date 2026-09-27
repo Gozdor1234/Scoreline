@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window theme only; the app's look comes from Compose MaterialTheme. -->
+    <style name="Theme.Scoreline" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_bg</item>
+    </style>
+    <color name="window_bg">#FF101418</color>
+    <color name="icon_bg">#FF0B3D2E</color>
+</resources>
