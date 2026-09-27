@@ -10,6 +10,8 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -121,6 +124,37 @@ fun SettingsScreen(modifier: Modifier, open: (Route) -> Unit) {
                     "If alerts seem to stop, set Scoreline's battery usage to Unrestricted in Android settings.",
             )
         }
+
+        item { SectionHeader("Appearance") }
+        item {
+            SwitchRow("Match my phone's colors", fav.matchPhoneColors && supportsPhoneColors, enabled = supportsPhoneColors) {
+                fav.updateMatchPhoneColors(it)
+            }
+        }
+        item {
+            Hint(
+                if (supportsPhoneColors) "Uses the color palette from your phone's wallpaper and style settings. Turn off for the app's own colors."
+                else "Matching phone colors needs Android 12 or newer.",
+            )
+        }
+        item {
+            Text("Theme", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+        }
+        item {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf("system" to "System", "light" to "Light", "dark" to "Dark", "amoled" to "AMOLED").forEach { (key, label) ->
+                    FilterChip(
+                        selected = fav.themeMode == key,
+                        onClick = { fav.updateThemeMode(key) },
+                        label = { Text(label) },
+                    )
+                }
+            }
+        }
+        item { Hint("System follows your phone's light/dark setting. AMOLED is dark mode with pure black backgrounds.") }
 
         item { SectionHeader("About") }
         item {

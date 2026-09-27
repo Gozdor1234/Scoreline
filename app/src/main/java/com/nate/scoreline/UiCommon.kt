@@ -1,6 +1,10 @@
 package com.nate.scoreline
 
+import android.graphics.Color as AndroidColor
 import android.os.Build
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -46,15 +51,51 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+/** Wallpaper-based "Material You" colors exist on Android 12 (API 31) and newer. */
+val supportsPhoneColors: Boolean get() = Build.VERSION.SDK_INT >= 31
+
+/** True black backgrounds so OLED pixels switch off; cards stay just visible. */
+private fun ColorScheme.toAmoled(): ColorScheme = copy(
+    background = Color.Black,
+    surface = Color.Black,
+    surfaceDim = Color.Black,
+    surfaceContainerLowest = Color.Black,
+    surfaceContainerLow = Color(0xFF080808),
+    surfaceContainer = Color(0xFF0E0E0E),
+    surfaceContainerHigh = Color(0xFF151515),
+    surfaceContainerHighest = Color(0xFF1C1C1C),
+    surfaceVariant = Color(0xFF1A1A1A),
+)
+
 @Composable
 fun ScorelineTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
     val ctx = LocalContext.current
-    val scheme = when {
-        Build.VERSION.SDK_INT >= 31 -> if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
+    val prefs = Favorites.get(ctx)
+    val mode = prefs.themeMode
+    val dark = when (mode) {
+        "light" -> false
+        "dark", "amoled" -> true
+        else -> isSystemInDarkTheme()
+    }
+    val base = when {
+        prefs.matchPhoneColors && supportsPhoneColors ->
+            if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
         dark -> darkColorScheme()
         else -> lightColorScheme()
     }
+    val scheme = if (mode == "amoled") base.toAmoled() else base
+
+    // Keep status/navigation bar icons readable when the app's mode differs from the phone's.
+    val activity = ctx as? ComponentActivity
+    LaunchedEffect(dark, activity) {
+        activity?.enableEdgeToEdge(
+            statusBarStyle = if (dark) SystemBarStyle.dark(AndroidColor.TRANSPARENT)
+            else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
+            navigationBarStyle = if (dark) SystemBarStyle.dark(AndroidColor.TRANSPARENT)
+            else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
+        )
+    }
+
     MaterialTheme(colorScheme = scheme) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, content = content)
     }

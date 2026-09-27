@@ -50,7 +50,7 @@ private val tabs = listOf(
     TabDef("Scores", Icons.Filled.Home),
     TabDef("F1", Icons.Filled.DateRange),
     TabDef("Standings", Icons.AutoMirrored.Filled.List),
-    TabDef("My teams", Icons.Filled.Settings),
+    TabDef("Settings", Icons.Filled.Settings),
 )
 
 @Composable

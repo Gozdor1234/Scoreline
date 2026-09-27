@@ -7,10 +7,10 @@ Personal Android app for NFL, college football, and F1: live scores, game detail
 | Tab | What it shows | Refresh |
 |---|---|---|
 | Scores | NFL / College (all FBS) by week, favorites pinned first, live down and distance, "My teams" filter | 30 s while any game is live, 5 min otherwise |
-| Game detail | Score, quarter linescore, team stats, player stats by category (passing, rushing, receiving, defense...), scoring plays, favorite toggle | 20 s while live |
+| Game detail | Score, quarter linescore, team stats, player stats by category (passing, rushing, receiving, defense...), scoring plays, drive-by-drive play-by-play, favorite toggle | 20 s while live |
 | F1 | This weekend's sessions with running order (tap to expand), last race classified results with grid, time/status, points, fastest lap | 30 s while a session is live |
 | Standings | NFL (by division), College (by conference), F1 drivers, F1 constructors | 30 min |
-| My teams | Favorite teams and drivers, alert settings | |
+| Settings | Favorite teams and drivers, alerts, appearance (match phone colors; System, Light, Dark, AMOLED) | |
 
 Polling only runs while the app is on screen.
 

@@ -28,6 +28,13 @@ class Favorites private constructor(context: Context) {
     var f1Alerts by mutableStateOf(prefs.getBoolean(KEY_F1_ALERTS, true))
         private set
 
+    /** "system", "light", "dark" or "amoled" */
+    var themeMode by mutableStateOf(prefs.getString(KEY_THEME, "system") ?: "system")
+        private set
+    /** Use the phone's wallpaper-based palette (Android 12+). */
+    var matchPhoneColors by mutableStateOf(prefs.getBoolean(KEY_DYNAMIC, true))
+        private set
+
     fun isFavTeam(league: League, id: String) = "${league.name}:$id" in teams
     fun isFavDriver(name: String) = F1.driverKey(name) in drivers
     fun favTeamIds(league: League): Set<String> =
@@ -56,6 +63,9 @@ class Favorites private constructor(context: Context) {
     fun setAlerts(enabled: Boolean) { alertsEnabled = enabled; prefs.edit().putBoolean(KEY_ALERTS, enabled).apply() }
     fun updateScoreAlerts(enabled: Boolean) { scoreAlerts = enabled; prefs.edit().putBoolean(KEY_SCORE_ALERTS, enabled).apply() }
     fun updateF1Alerts(enabled: Boolean) { f1Alerts = enabled; prefs.edit().putBoolean(KEY_F1_ALERTS, enabled).apply() }
+    // Named update*, not set*: a set* name would clash with the property's generated setter.
+    fun updateThemeMode(mode: String) { themeMode = mode; prefs.edit().putString(KEY_THEME, mode).apply() }
+    fun updateMatchPhoneColors(on: Boolean) { matchPhoneColors = on; prefs.edit().putBoolean(KEY_DYNAMIC, on).apply() }
 
     private fun readNames(): Map<String, String> =
         prefs.getStringSet(KEY_TEAM_NAMES, emptySet())!!.mapNotNull {
@@ -71,6 +81,8 @@ class Favorites private constructor(context: Context) {
         private const val KEY_ALERTS = "alerts"
         private const val KEY_SCORE_ALERTS = "score_alerts"
         private const val KEY_F1_ALERTS = "f1_alerts"
+        private const val KEY_THEME = "theme_mode"
+        private const val KEY_DYNAMIC = "match_phone_colors"
 
         @Volatile private var instance: Favorites? = null
         fun get(context: Context): Favorites =

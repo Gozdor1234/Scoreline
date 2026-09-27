@@ -106,7 +106,7 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
                 .filter { !mineOnly || isFav(it) }
                 .sortedWith(compareBy<Game>({ if (isFav(it)) 0 else 1 }, { stateOrder[it.state] ?: 3 }, { it.date }))
             if (games.isEmpty()) {
-                Message(if (mineOnly) "None of your teams play this week.\nAdd teams under My teams." else "No games this week.")
+                Message(if (mineOnly) "None of your teams play this week.\nAdd teams under Settings." else "No games this week.")
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(12.dp),

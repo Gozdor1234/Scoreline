@@ -3,6 +3,7 @@
 package com.nate.scoreline
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,12 +29,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,6 +65,7 @@ fun GameDetailScreen(league: League, eventId: String, onBack: () -> Unit) {
     ) { Espn.summary(league, eventId) }
     var section by rememberSaveable { mutableIntStateOf(0) }
     var homeSide by rememberSaveable { mutableIntStateOf(0) }
+    var collapsed by remember { mutableStateOf(setOf<String>()) } // drive ids the user has folded up
 
     Scaffold(
         topBar = {
@@ -84,8 +89,8 @@ fun GameDetailScreen(league: League, eventId: String, onBack: () -> Unit) {
                         if (g.away.linescores.isNotEmpty() || g.home.linescores.isNotEmpty()) item { Linescore(g) }
                     }
                     item {
-                        TabRow(selectedTabIndex = section, modifier = Modifier.padding(top = 8.dp)) {
-                            listOf("Team stats", "Players", "Scoring").forEachIndexed { i, s ->
+                        ScrollableTabRow(selectedTabIndex = section, edgePadding = 8.dp, modifier = Modifier.padding(top = 8.dp)) {
+                            listOf("Team stats", "Players", "Scoring", "Play-by-play").forEachIndexed { i, s ->
                                 Tab(selected = section == i, onClick = { section = i }, text = { Text(s) })
                             }
                         }
@@ -115,10 +120,25 @@ fun GameDetailScreen(league: League, eventId: String, onBack: () -> Unit) {
                             items(tables) { t -> PlayerTableCard(t) }
                         }
 
-                        else -> if (d.scoring.isEmpty()) {
+                        2 -> if (d.scoring.isEmpty()) {
                             item { EmptyNote("No scoring plays yet.") }
                         } else {
                             items(d.scoring) { p -> ScoringRow(p, g) }
+                        }
+
+                        else -> if (d.drives.isEmpty()) {
+                            item { EmptyNote("Play-by-play appears once the game starts.") }
+                        } else {
+                            d.drives.forEach { dr ->
+                                item {
+                                    DriveHeader(dr, collapsed = dr.id in collapsed) {
+                                        collapsed = if (dr.id in collapsed) collapsed - dr.id else collapsed + dr.id
+                                    }
+                                }
+                                if (dr.id !in collapsed) {
+                                    items(dr.plays) { p -> PlayRow(p, g) }
+                                }
+                            }
                         }
                     }
                     item { Spacer(Modifier.padding(24.dp)) }
@@ -286,6 +306,70 @@ private fun ScoringRow(p: ScoringPlay, g: Game?) {
                 textAlign = TextAlign.End,
                 modifier = Modifier.padding(start = 8.dp),
             )
+        }
+        HorizontalDivider()
+    }
+}
+
+@Composable
+private fun DriveHeader(dr: Drive, collapsed: Boolean, onToggle: () -> Unit) {
+    val highlight = dr.inProgress || dr.isScore
+    Surface(
+        color = if (highlight) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clickable(onClick = onToggle),
+    ) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Logo(dr.logo, 24.dp)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(dr.team, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    val result = if (dr.inProgress) "Current drive" else dr.result
+                    if (result.isNotBlank()) {
+                        Text(
+                            "  ·  $result",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = if (dr.isScore) FontWeight.Bold else FontWeight.Normal,
+                            color = if (dr.inProgress) LiveRed else MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+                if (dr.summary.isNotBlank()) {
+                    Text(dr.summary, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Text(if (collapsed) "Show" else "Hide", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+private fun PlayRow(p: Play, g: Game?) {
+    Column {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.Top) {
+            Column(Modifier.width(64.dp)) {
+                Text(periodLabel(p.period), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(p.clock, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Column(Modifier.weight(1f)) {
+                if (p.downDistance.isNotBlank()) {
+                    Text(p.downDistance, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(
+                    p.text,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = if (p.scoring) FontWeight.Bold else FontWeight.Normal,
+                )
+            }
+            if (p.scoring) {
+                Text(
+                    "${g?.away?.abbr ?: ""} ${p.awayScore}\n${g?.home?.abbr ?: ""} ${p.homeScore}",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
         }
         HorizontalDivider()
     }

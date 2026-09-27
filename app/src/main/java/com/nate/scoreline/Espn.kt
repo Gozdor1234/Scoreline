@@ -68,11 +68,37 @@ data class ScoringPlay(
     val homeScore: String,
 )
 
+data class Play(
+    val id: String,
+    val period: Int,
+    val clock: String,
+    val downDistance: String,
+    val text: String,
+    val type: String,
+    val awayScore: String,
+    val homeScore: String,
+    val scoring: Boolean,
+)
+
+data class Drive(
+    val id: String,
+    val team: String,
+    val logo: String,
+    val summary: String,
+    val result: String,
+    val isScore: Boolean,
+    val inProgress: Boolean,
+    /** Newest play first. */
+    val plays: List<Play>,
+)
+
 data class GameDetail(
     val game: Game?,
     val teamStats: List<StatLine>,
     val players: List<PlayerTable>,
     val scoring: List<ScoringPlay>,
+    /** Newest drive first. */
+    val drives: List<Drive> = emptyList(),
 )
 
 data class StandingRow(val teamId: String, val name: String, val abbr: String, val logo: String, val cols: List<String>)
@@ -221,7 +247,62 @@ object Espn {
                 homeScore = p.numText("homeScore"),
             )
         }
-        return GameDetail(game, teamStats, players, scoring)
+        return GameDetail(game, teamStats, players, scoring, parseDrives(root))
+    }
+
+    /** Seconds of game time elapsed at a play, for ordering (15-minute quarters). */
+    private fun elapsed(period: Int, clock: String): Int {
+        val parts = clock.split(':')
+        val left = if (parts.size == 2) (parts[0].toIntOrNull() ?: 0) * 60 + (parts[1].toIntOrNull() ?: 0) else 0
+        return period * 900 - left
+    }
+
+    private fun ordinal(n: Int) = when (n) { 1 -> "1st"; 2 -> "2nd"; 3 -> "3rd"; else -> "${n}th" }
+
+    fun parseDrives(root: JSONObject): List<Drive> {
+        val drivesObj = root.obj("drives") ?: return emptyList()
+        val current = drivesObj.obj("current")
+        val raw = drivesObj.arr("previous").objects().map { it to false } +
+            listOfNotNull(current).map { it to true }
+        val seen = mutableSetOf<String>()
+        val drives = raw.mapNotNull { (d, isCurrent) ->
+            val id = d.str("id")
+            if (id.isNotEmpty() && !seen.add(id)) return@mapNotNull null // current can repeat a previous drive
+            val plays = d.arr("plays").objects().map { p ->
+                val start = p.obj("start")
+                val down = start?.optInt("down", 0) ?: 0
+                val dd = start?.str("downDistanceText")?.ifEmpty { null }
+                    ?: start?.str("shortDownDistanceText")?.ifEmpty { null }
+                    ?: if (down > 0) "${ordinal(down)} & ${start?.optInt("distance", 0)}" +
+                        (start?.str("possessionText")?.let { if (it.isNotEmpty()) " at $it" else "" } ?: "")
+                    else ""
+                Play(
+                    id = p.str("id"),
+                    period = p.obj("period")?.optInt("number", 0) ?: 0,
+                    clock = p.obj("clock")?.str("displayValue") ?: "",
+                    downDistance = dd,
+                    text = p.str("text"),
+                    type = p.obj("type")?.str("text") ?: "",
+                    awayScore = p.numText("awayScore"),
+                    homeScore = p.numText("homeScore"),
+                    scoring = p.optBoolean("scoringPlay", false),
+                )
+            }.reversed().sortedByDescending { elapsed(it.period, it.clock) } // reversed first: stable sort keeps same-clock plays newest-first
+            if (plays.isEmpty() && d.str("description").isEmpty()) return@mapNotNull null
+            val team = d.obj("team")
+            Drive(
+                id = id,
+                team = team?.str("abbreviation") ?: "",
+                logo = team?.arr("logos").objects().firstOrNull()?.str("href") ?: "",
+                summary = d.str("description"),
+                result = d.str("displayResult").ifEmpty { d.str("result") },
+                isScore = d.optBoolean("isScore", false),
+                inProgress = isCurrent,
+                plays = plays,
+            )
+        }
+        // Don't trust ESPN's drive order; sort by the game clock of each drive's latest play.
+        return drives.sortedByDescending { dr -> dr.plays.firstOrNull()?.let { elapsed(it.period, it.clock) } ?: -1 }
     }
 
     fun parseStandings(root: JSONObject): List<StandingGroup> {
