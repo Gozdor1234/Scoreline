@@ -111,6 +111,7 @@ fun StatGrid(
     cellWidth: Dp = 54.dp,
     rowClickable: (Int) -> Boolean = { false },
     onRowClick: (Int) -> Unit = {},
+    groups: List<ColumnGroup> = emptyList(),
 ) {
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
         Column(Modifier.padding(vertical = 10.dp)) {
@@ -123,6 +124,23 @@ fun StatGrid(
                 )
             }
             Column(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
+                if (groups.isNotEmpty()) {
+                    // e.g. "RUSHING" over its 5 columns, "RECEIVING" over the next 6
+                    Row(Modifier.padding(top = 2.dp)) {
+                        Spacer(Modifier.width(firstWidth))
+                        groups.forEach { g ->
+                            Text(
+                                g.title.uppercase(),
+                                Modifier.width(cellWidth * g.span).padding(horizontal = 4.dp),
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
                 GridRow(firstHeader, labels, firstWidth, cellWidth, header = true)
                 rows.forEachIndexed { i, (first, cells) ->
                     GridRow(first, cells, firstWidth, cellWidth, onFirst = if (rowClickable(i)) { { onRowClick(i) } } else null)

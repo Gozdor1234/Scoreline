@@ -3,6 +3,10 @@
 package com.nate.scoreline
 
 import androidx.compose.foundation.background
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -50,6 +54,12 @@ fun PlayerScreen(league: League, athleteId: String, onBack: () -> Unit, open: (R
     val ovP = rememberPolled<AthleteOverview>("ov-$key", { 15 * 60_000L }) { TeamApi.athleteOverview(league, athleteId) }
     val stP = rememberPolled<List<CareerTable>>("st-$key", { 30 * 60_000L }) { TeamApi.athleteStats(league, athleteId) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var statsMode by rememberSaveable { mutableIntStateOf(0) } // 0 by season, 1 by game
+    var season by rememberSaveable { mutableStateOf<String?>(null) } // null = current season
+    // Game log loads only when you open "By game".
+    val glP = if (tab == 1 && statsMode == 1) {
+        rememberPolled<GameLog>("gl-$key-${season ?: "current"}", { 10 * 60_000L }) { TeamApi.gameLog(league, athleteId, season) }
+    } else null
     val a = aP.state.data
 
     Scaffold(
@@ -107,6 +117,50 @@ fun PlayerScreen(league: League, athleteId: String, onBack: () -> Unit, open: (R
                         }
 
                         1 -> {
+                            item {
+                                Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    FilterChip(selected = statsMode == 0, onClick = { statsMode = 0 }, label = { Text("By season") })
+                                    FilterChip(selected = statsMode == 1, onClick = { statsMode = 1 }, label = { Text("By game") })
+                                }
+                            }
+                            if (statsMode == 1) {
+                                val gl = glP?.state?.data
+                                when {
+                                    gl == null && glP?.state?.error != null -> item { InlineNote("Couldn't load the game log.") }
+                                    gl == null -> item { InlineLoading() }
+                                    else -> {
+                                        if (gl.seasons.size > 1) {
+                                            item {
+                                                Row(
+                                                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                ) {
+                                                    gl.seasons.forEach { (value, label) ->
+                                                        FilterChip(
+                                                            selected = value == gl.selectedSeason,
+                                                            onClick = { season = value },
+                                                            label = { Text(label) },
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if (gl.sections.isEmpty()) item { InlineNote("No games played this season.") }
+                                        items(gl.sections, key = { it.title }) { sec ->
+                                            StatGrid(
+                                                title = sec.title,
+                                                firstHeader = "GAME",
+                                                labels = gl.labels,
+                                                groups = gl.groups,
+                                                rows = sec.games.map { g -> gameLabel(g) to g.stats },
+                                                firstWidth = 168.dp,
+                                                rowClickable = { true },
+                                                onRowClick = { i -> open(Route.GameDetail(league, sec.games[i].eventId)) },
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
                             val tables = stP.state.data
                             when {
                                 tables == null && stP.state.error != null -> item { InlineNote("Couldn't load stats.") }
@@ -123,6 +177,7 @@ fun PlayerScreen(league: League, athleteId: String, onBack: () -> Unit, open: (R
                                         firstWidth = 72.dp,
                                     )
                                 }
+                            }
                             }
                         }
 
@@ -274,4 +329,16 @@ private fun BioList(a: Athlete, league: League, open: (Route) -> Unit) {
             }
         }
     }
+}
+
+private val gameDateFmt = java.time.format.DateTimeFormatter.ofPattern("M/d")
+
+/** "9/27 vs NYJ  W 31-24" */
+private fun gameLabel(g: GameLogEntry): String {
+    val d = try {
+        java.time.OffsetDateTime.parse(g.date).atZoneSameInstant(java.time.ZoneId.systemDefault()).format(gameDateFmt)
+    } catch (e: Exception) {
+        ""
+    }
+    return listOf(d, g.opponent, g.result).filter { it.isNotBlank() }.joinToString("  ")
 }

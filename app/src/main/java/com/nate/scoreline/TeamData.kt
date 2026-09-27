@@ -91,6 +91,32 @@ data class CareerTable(
 )
 
 data class OverviewSplits(val title: String, val labels: List<String>, val rows: List<Pair<String, List<String>>>)
+/** One game in a player's game log. */
+data class GameLogEntry(
+    val eventId: String,
+    val date: String,
+    /** "vs NYJ" or "@ BUF" */
+    val opponent: String,
+    val opponentLogo: String,
+    /** "W 31-24" */
+    val result: String,
+    val stats: List<String>,
+)
+
+data class GameLogSection(val title: String, val games: List<GameLogEntry>)
+
+/** Column group, e.g. "Rushing" spanning 5 columns. */
+data class ColumnGroup(val title: String, val span: Int)
+
+data class GameLog(
+    val labels: List<String>,
+    val groups: List<ColumnGroup>,
+    val sections: List<GameLogSection>,
+    /** (value for the request, label to show), newest first */
+    val seasons: List<Pair<String, String>>,
+    val selectedSeason: String,
+)
+
 data class NewsItem(val headline: String, val description: String, val published: String)
 data class AthleteOverview(val splits: OverviewSplits?, val news: List<NewsItem>)
 
@@ -109,6 +135,9 @@ object TeamApi {
     suspend fun athlete(league: League, id: String) = parseAthlete(Net.getJson("$COMMON/${league.path}/athletes/$id"))
     suspend fun athleteStats(league: League, id: String) =
         parseAthleteStats(Net.getJson("$COMMON/${league.path}/athletes/$id/stats"))
+    suspend fun gameLog(league: League, id: String, season: String?) =
+        parseGameLog(Net.getJson("$COMMON/${league.path}/athletes/$id/gamelog" + if (season != null) "?season=$season" else ""))
+
     suspend fun athleteOverview(league: League, id: String) =
         parseOverview(Net.getJson("$COMMON/${league.path}/athletes/$id/overview"))
 
@@ -263,6 +292,50 @@ object TeamApi {
                 totals = c.arr("totals").strings(),
             )
         }.filter { t -> t.rows.any { r -> r.second.any { it.isNotBlank() && it != "0" && it != "0.0" && it != "-" } } }
+
+    fun parseGameLog(root: JSONObject): GameLog {
+        val labels = root.arr("labels").strings()
+        val groups = root.arr("categories").objects().mapNotNull { c ->
+            val span = c.optInt("count", 0)
+            if (span <= 0) null else ColumnGroup(c.str("displayName").ifEmpty { c.str("name") }, span)
+        }.takeIf { g -> g.sumOf { it.span } == labels.size } ?: emptyList() // only use groups that line up exactly
+        val eventsObj = root.obj("events")
+        fun entry(eventId: String, stats: List<String>): GameLogEntry {
+            val e = eventsObj?.obj(eventId)
+            val opp = e?.obj("opponent")
+            val atVs = e?.str("atVs").orEmpty().ifEmpty { "vs" }
+            val res = e?.str("gameResult").orEmpty()
+            val score = e?.str("score").orEmpty()
+            return GameLogEntry(
+                eventId = eventId,
+                date = e?.str("gameDate").orEmpty(),
+                opponent = "$atVs ${opp?.str("abbreviation").orEmpty()}".trim(),
+                opponentLogo = opp?.str("logo").orEmpty(),
+                result = listOf(res, score).filter { it.isNotBlank() }.joinToString(" "),
+                stats = stats,
+            )
+        }
+        val sections = root.arr("seasonTypes").objects().mapNotNull { st ->
+            val seen = HashSet<String>()
+            val games = st.arr("categories").objects()
+                .filter { it.str("type").let { t -> t.isEmpty() || t == "event" } } // skip monthly totals
+                .flatMap { it.arr("events").objects() }
+                .mapNotNull { ev ->
+                    val id = ev.str("eventId")
+                    if (id.isEmpty() || !seen.add(id)) null else entry(id, ev.arr("stats").strings())
+                }
+                .sortedByDescending { it.date }
+            if (games.isEmpty()) null else GameLogSection(st.str("displayName"), games)
+        }
+        // Season picker: the filter whose name mentions "season", else the first one.
+        val filters = root.arr("filters").objects()
+        val f = filters.firstOrNull { it.str("name").contains("season", true) } ?: filters.firstOrNull()
+        val seasons = f?.arr("options").objects()
+            ?.map { it.str("value") to it.str("displayValue").ifEmpty { it.str("value") } }
+            ?.filter { it.first.isNotEmpty() }
+            .orEmpty()
+        return GameLog(labels, groups, sections, seasons, f?.str("value").orEmpty().ifEmpty { seasons.firstOrNull()?.first.orEmpty() })
+    }
 
     fun parseOverview(root: JSONObject): AthleteOverview {
         val st = root.obj("statistics")
