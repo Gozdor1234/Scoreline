@@ -63,6 +63,8 @@ class MainActivity : ComponentActivity() {
 sealed interface Route {
     data class GameDetail(val league: League, val eventId: String) : Route
     data class TeamPicker(val league: League) : Route
+    data class Team(val league: League, val teamId: String) : Route
+    data class Player(val league: League, val athleteId: String) : Route
     data object DriverPicker : Route
 }
 
@@ -96,7 +98,9 @@ fun App(pendingRoute: MutableState<Route?>) {
     val holder = rememberSaveableStateHolder()
 
     when (val top = stack.lastOrNull()) {
-        is Route.GameDetail -> GameDetailScreen(top.league, top.eventId, onBack = back)
+        is Route.GameDetail -> GameDetailScreen(top.league, top.eventId, onBack = back, open = open)
+        is Route.Team -> TeamScreen(top.league, top.teamId, onBack = back, open = open)
+        is Route.Player -> PlayerScreen(top.league, top.athleteId, onBack = back, open = open)
         is Route.TeamPicker -> TeamPickerScreen(top.league, onBack = back)
         Route.DriverPicker -> DriverPickerScreen(onBack = back)
         null -> holder.SaveableStateProvider("tabs") {

@@ -45,6 +45,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -353,3 +354,27 @@ fun scorelineTopBarColors(): TopAppBarColors {
         actionIconContentColor = on,
     )
 }
+
+/**
+ * A team's color, adjusted to stay visible: on a dark screen a near-black primary (e.g. Raiders)
+ * switches to the team's alternate color; on a light screen a near-white one does the same.
+ */
+fun teamColor(hex: String, altHex: String, darkUi: Boolean): Color? {
+    val main = ColorMath.parseHex(hex)
+    val alt = ColorMath.parseHex(altHex)
+    val pick = when {
+        main == null -> alt
+        darkUi && ColorMath.luminance(main) < 0.02 && alt != null && ColorMath.luminance(alt) > ColorMath.luminance(main) -> alt
+        !darkUi && ColorMath.luminance(main) > 0.85 && alt != null -> alt
+        else -> main
+    }
+    return pick?.let { Color(it) }
+}
+
+/** Soft team-color fades behind each side of a matchup header (away on the left, home on the right). */
+fun matchupBrush(away: Color?, home: Color?): Brush = Brush.horizontalGradient(
+    0f to (away?.copy(alpha = 0.55f) ?: Color.Transparent),
+    0.45f to Color.Transparent,
+    0.55f to Color.Transparent,
+    1f to (home?.copy(alpha = 0.55f) ?: Color.Transparent),
+)

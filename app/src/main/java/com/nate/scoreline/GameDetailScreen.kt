@@ -4,6 +4,10 @@ package com.nate.scoreline
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,7 +61,7 @@ private fun periodLabel(p: Int) = when {
 }
 
 @Composable
-fun GameDetailScreen(league: League, eventId: String, onBack: () -> Unit) {
+fun GameDetailScreen(league: League, eventId: String, onBack: () -> Unit, open: (Route) -> Unit) {
     val fav = Favorites.get(LocalContext.current)
     val polled = rememberPolled<GameDetail>(
         key = league to eventId,
@@ -87,7 +91,14 @@ fun GameDetailScreen(league: League, eventId: String, onBack: () -> Unit) {
                 val g = d.game
                 LazyColumn {
                     if (g != null) {
-                        item { GameHeader(g, fav) }
+                        item {
+                            GameHeader(
+                                g, fav,
+                                awayColorHex = g.away.color.ifEmpty { d.teamColors[g.away.id].orEmpty() },
+                                homeColorHex = g.home.color.ifEmpty { d.teamColors[g.home.id].orEmpty() },
+                                onTeam = { t -> open(Route.Team(league, t.id)) },
+                            )
+                        }
                         if (g.away.linescores.isNotEmpty() || g.home.linescores.isNotEmpty()) item { Linescore(g) }
                     }
                     item {
@@ -122,7 +133,7 @@ fun GameDetailScreen(league: League, eventId: String, onBack: () -> Unit) {
                                 }
                             }
                             if (tables.isEmpty()) item { EmptyNote("Player stats appear once the game starts.") }
-                            items(tables) { t -> PlayerTableCard(t) }
+                            items(tables) { t -> PlayerTableCard(t) { id -> open(Route.Player(league, id)) } }
                         }
 
                         2 -> if (d.scoring.isEmpty()) {
@@ -165,9 +176,15 @@ private fun EmptyNote(text: String) {
 }
 
 @Composable
-private fun GameHeader(g: Game, fav: Favorites) {
-    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        HeaderTeam(g.away, g.league, fav, Modifier.weight(1f))
+private fun GameHeader(g: Game, fav: Favorites, awayColorHex: String, homeColorHex: String, onTeam: (TeamSide) -> Unit) {
+    val darkUi = ColorMath.isDark(MaterialTheme.colorScheme.background.toArgb())
+    val awayColor = teamColor(awayColorHex, g.away.altColor, darkUi)
+    val homeColor = teamColor(homeColorHex, g.home.altColor, darkUi)
+    Row(
+        Modifier.fillMaxWidth().background(matchupBrush(awayColor, homeColor)).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        HeaderTeam(g.away, g.league, fav, Modifier.weight(1f)) { onTeam(g.away) }
         Column(Modifier.weight(1.2f), horizontalAlignment = Alignment.CenterHorizontally) {
             if (g.state != "pre") {
                 Text("${g.away.score}  -  ${g.home.score}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -185,16 +202,23 @@ private fun GameHeader(g: Game, fav: Favorites) {
                 Text(g.broadcast, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        HeaderTeam(g.home, g.league, fav, Modifier.weight(1f))
+        HeaderTeam(g.home, g.league, fav, Modifier.weight(1f)) { onTeam(g.home) }
     }
 }
 
 @Composable
-private fun HeaderTeam(t: TeamSide, league: League, fav: Favorites, modifier: Modifier) {
+private fun HeaderTeam(t: TeamSide, league: League, fav: Favorites, modifier: Modifier, onOpen: () -> Unit) {
     val isFav = fav.isFavTeam(league, t.id)
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Logo(t.logo, 52.dp)
-        Text(t.abbr, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        // Logo and name open the team page.
+        Column(
+            Modifier.clip(RoundedCornerShape(12.dp)).clickable(enabled = t.id.isNotEmpty(), onClick = onOpen)
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Logo(t.logo, 56.dp)
+            Text(t.abbr, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        }
         if (t.record.isNotBlank()) Text(t.record, style = MaterialTheme.typography.labelSmall)
         IconButton(onClick = { fav.toggleTeam(league, t.id, t.name) }) {
             Icon(
@@ -254,7 +278,7 @@ private val NAME_W: Dp = 150.dp
 private val CELL_W: Dp = 58.dp
 
 @Composable
-private fun PlayerTableCard(t: PlayerTable) {
+private fun PlayerTableCard(t: PlayerTable, onPlayer: (String) -> Unit) {
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
         Column(Modifier.padding(vertical = 10.dp)) {
             Text(t.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
@@ -262,7 +286,10 @@ private fun PlayerTableCard(t: PlayerTable) {
             // Wide categories (passing has 7 columns) scroll sideways as one block, so columns stay aligned.
             Column(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
                 TableRow("", t.labels, header = true)
-                t.rows.forEach { (name, stats) -> TableRow(name, stats) }
+                t.rows.forEachIndexed { i, (name, stats) ->
+                    val id = t.athleteIds.getOrNull(i).orEmpty()
+                    TableRow(name, stats, onName = if (id.isNotEmpty()) { { onPlayer(id) } } else null)
+                }
                 if (t.totals.any { it.isNotBlank() }) TableRow("Team", t.totals, bold = true)
             }
         }
@@ -270,15 +297,22 @@ private fun PlayerTableCard(t: PlayerTable) {
 }
 
 @Composable
-private fun TableRow(name: String, cells: List<String>, header: Boolean = false, bold: Boolean = false) {
+private fun TableRow(
+    name: String,
+    cells: List<String>,
+    header: Boolean = false,
+    bold: Boolean = false,
+    onName: (() -> Unit)? = null,
+) {
     Row(Modifier.padding(vertical = 3.dp)) {
         Text(
             name,
-            Modifier.width(NAME_W),
+            Modifier.width(NAME_W).then(if (onName != null) Modifier.clickable(onClick = onName) else Modifier),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+            color = if (onName != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
         )
         cells.forEach { c ->
             Text(

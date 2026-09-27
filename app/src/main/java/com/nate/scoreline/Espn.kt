@@ -43,6 +43,9 @@ data class TeamSide(
     val linescores: List<String>,
     /** Nickname, e.g. "Lions" (ESPN shortDisplayName). */
     val shortName: String = "",
+    /** Team colors as hex without '#', e.g. "0076b6". Empty when ESPN leaves them out. */
+    val color: String = "",
+    val altColor: String = "",
 )
 
 data class Game(
@@ -81,6 +84,14 @@ data class PlayerTable(
     val labels: List<String>,
     val rows: List<Pair<String, List<String>>>,
     val totals: List<String>,
+    /** Category id, e.g. "passing"; same across games, used to combine box scores. */
+    val key: String = "",
+    val teamId: String = "",
+    /** Parallel to rows: ESPN athlete id and headshot URL (may be empty). */
+    val athleteIds: List<String> = emptyList(),
+    val headshots: List<String> = emptyList(),
+    /** Parallel to rows: plain display name without jersey. */
+    val names: List<String> = emptyList(),
 )
 
 data class ScoringPlay(
@@ -123,6 +134,8 @@ data class GameDetail(
     val scoring: List<ScoringPlay>,
     /** Newest drive first. */
     val drives: List<Drive> = emptyList(),
+    /** Team colors from the box score (teamId -> hex), used when the header lacks them. */
+    val teamColors: Map<String, String> = emptyMap(),
 )
 
 data class StandingRow(val teamId: String, val name: String, val abbr: String, val logo: String, val cols: List<String>)
@@ -232,6 +245,8 @@ object Espn {
             homeAway = c.str("homeAway"),
             linescores = lines,
             shortName = t.str("shortDisplayName"),
+            color = t.str("color"),
+            altColor = t.str("alternateColor"),
         )
     }
 
@@ -255,8 +270,10 @@ object Espn {
         // Player stat tables, one per team per category (passing, rushing, ...).
         val players = box?.arr("players").objects().flatMap { teamBlock ->
             val abbr = teamBlock.obj("team")?.str("abbreviation") ?: ""
+            val teamId = teamBlock.obj("team")?.str("id") ?: ""
             teamBlock.arr("statistics").objects().mapNotNull { cat ->
-                val rows = cat.arr("athletes").objects().map { a ->
+                val athletes = cat.arr("athletes").objects()
+                val rows = athletes.map { a ->
                     val ath = a.obj("athlete")
                     val name = ath?.str("displayName") ?: "?"
                     val jersey = ath?.str("jersey") ?: ""
@@ -269,9 +286,18 @@ object Espn {
                     labels = cat.arr("labels").strings(),
                     rows = rows,
                     totals = cat.arr("totals").strings(),
+                    key = cat.str("name").ifEmpty { cat.str("text") },
+                    teamId = teamId,
+                    athleteIds = athletes.map { it.obj("athlete")?.str("id") ?: "" },
+                    headshots = athletes.map { it.obj("athlete")?.obj("headshot")?.str("href") ?: "" },
+                    names = athletes.map { it.obj("athlete")?.str("displayName") ?: "?" },
                 )
             }
         }
+        val teamColors = (box?.arr("players").objects() + boxTeams)
+            .mapNotNull { it.obj("team") }
+            .filter { it.str("id").isNotEmpty() && it.str("color").isNotEmpty() }
+            .associate { it.str("id") to it.str("color") }
 
         val scoring = root.arr("scoringPlays").objects().map { p ->
             val team = p.obj("team")
@@ -284,7 +310,7 @@ object Espn {
                 homeScore = p.numText("homeScore"),
             )
         }
-        return GameDetail(game, teamStats, players, scoring, parseDrives(root))
+        return GameDetail(game, teamStats, players, scoring, parseDrives(root), teamColors = teamColors)
     }
 
     /** Seconds of game time elapsed at a play, for ordering (15-minute quarters). */
