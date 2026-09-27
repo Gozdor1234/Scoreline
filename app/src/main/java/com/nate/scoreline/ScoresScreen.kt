@@ -2,7 +2,10 @@
 
 package com.nate.scoreline
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -297,7 +300,14 @@ private fun TeamLine(t: TeamSide, g: Game, hasBall: Boolean) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        if (hasBall) Text("  ●", color = LiveRed, style = MaterialTheme.typography.labelSmall)
+        if (hasBall) {
+            Spacer(Modifier.width(6.dp))
+            Image(
+                painter = painterResource(R.drawable.ic_football),
+                contentDescription = "Has the ball",
+                modifier = Modifier.size(16.dp),
+            )
+        }
         if (t.record.isNotBlank()) {
             Text("  ${t.record}  ", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
