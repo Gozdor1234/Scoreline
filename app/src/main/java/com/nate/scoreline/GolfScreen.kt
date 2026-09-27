@@ -3,6 +3,17 @@
 package com.nate.scoreline
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilterChip
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -135,6 +146,7 @@ private fun LeaderboardList(
     val p = rememberPolled<GolfTournament?>("golf-lb-${eventId ?: "default"}", { t -> if (t?.state == "in") GOLF_LIVE_MS else IDLE_MS }) {
         Golf.tournament(eventId)
     }
+    var view by rememberSaveable(eventId) { mutableIntStateOf(0) } // 0 = live/final, n = after round n
     val s = p.state
     if (s.data == null && !s.loading && s.error == null) {
         LazyColumn {
@@ -148,14 +160,37 @@ private fun LeaderboardList(
         LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
             before?.invoke(this)
             if (showHeader) item { TournamentHeader(t) { open(Route.GolfEvent(t.id)) } }
-            leaderboardItems(t, open)
+            leaderboardItems(t, open, view) { view = it }
         }
     }
 }
 
-private fun LazyListScope.leaderboardItems(t: GolfTournament, open: (Route) -> Unit) {
+private fun LazyListScope.leaderboardItems(t: GolfTournament, open: (Route) -> Unit, view: Int, onView: (Int) -> Unit) {
     if (t.entries.isEmpty()) {
         item { InlineNote(if (t.state == "pre") "The field and tee times haven't been posted yet." else "No leaderboard yet.") }
+        return
+    }
+    // "Live" (or "Final") plus one chip per finished round: standings as they stood at the end of that day.
+    val done = Golf.completedRounds(t).let { r -> if (t.state == "post") r.dropLast(1) else r }
+    if (done.isNotEmpty()) {
+        item(key = "round-chips") {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilterChip(selected = view == 0, onClick = { onView(0) }, label = { Text(if (t.state == "post") "Final" else "Live") })
+                done.forEach { r -> FilterChip(selected = view == r, onClick = { onView(r) }, label = { Text("After R$r") }) }
+            }
+        }
+    }
+    if (view > 0 && view in done) {
+        val rows = Golf.standingsAfter(t.entries, view)
+        item(key = "round-head") { RoundHeaderRow(view) }
+        rows.forEachIndexed { i, r ->
+            item(key = "r$view-${r.entry.athleteId}-$i") {
+                RoundStandingRow(r) { if (r.entry.athleteId.isNotEmpty()) open(Route.Golfer(r.entry.athleteId)) }
+            }
+        }
         return
     }
     item { LeaderboardHeaderRow() }
@@ -213,6 +248,39 @@ private fun LeaderboardHeaderRow() {
         Text("TO PAR", Modifier.width(54.dp), textAlign = TextAlign.End, style = st, color = c)
         Text("TODAY", Modifier.width(50.dp), textAlign = TextAlign.End, style = st, color = c)
         Text("THRU", Modifier.width(62.dp), textAlign = TextAlign.End, style = st, color = c)
+    }
+}
+
+@Composable
+private fun RoundHeaderRow(round: Int) {
+    val st = MaterialTheme.typography.labelSmall
+    val c = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Text("POS", Modifier.width(42.dp), style = st, color = c)
+        Text("PLAYER", Modifier.weight(1f), style = st, color = c)
+        Text("TOTAL", Modifier.width(54.dp), textAlign = TextAlign.End, style = st, color = c)
+        Text("R$round", Modifier.width(50.dp), textAlign = TextAlign.End, style = st, color = c)
+        Text("STROKES", Modifier.width(62.dp), textAlign = TextAlign.End, style = st, color = c)
+    }
+}
+
+@Composable
+private fun RoundStandingRow(r: RoundStanding, onClick: () -> Unit) {
+    val total = Golf.toParText(r.total)
+    val rnd = Golf.toParText(r.roundToPar)
+    Column {
+        Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(r.position, Modifier.width(42.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                if (r.entry.flag.isNotBlank()) { Logo(r.entry.flag, 16.dp); Spacer(Modifier.width(6.dp)) }
+                Text(r.entry.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(total, Modifier.width(54.dp), textAlign = TextAlign.End, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = parColor(total))
+            Text(rnd, Modifier.width(50.dp), textAlign = TextAlign.End, style = MaterialTheme.typography.bodyMedium, color = parColor(rnd))
+            Text(r.roundStrokes.toString(), Modifier.width(62.dp), textAlign = TextAlign.End, style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        HorizontalDivider()
     }
 }
 
@@ -294,6 +362,12 @@ private fun ScheduleRow(c: GolfCalendarItem, live: Boolean, onClick: () -> Unit)
 @Composable
 fun GolfEventScreen(eventId: String, onBack: () -> Unit, open: (Route) -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var view by rememberSaveable { mutableIntStateOf(0) }
+    var scRound by rememberSaveable { mutableStateOf<Int?>(null) } // null = all rounds
+    // Hole-by-hole scores only load when the Info tab is open.
+    val scP = if (tab == 0) {
+        rememberPolled<CourseScorecard>("golf-sc-$eventId", { 10 * 60_000L }) { Golf.scorecard(eventId) }
+    } else null
     val p = rememberPolled<GolfTournament?>("golf-ev-$eventId", { t -> if (t?.state == "in") GOLF_LIVE_MS else IDLE_MS }) {
         Golf.tournament(eventId)
     }
@@ -318,7 +392,12 @@ fun GolfEventScreen(eventId: String, onBack: () -> Unit, open: (Route) -> Unit) 
                 else -> LoadableContent(p) { tour ->
                     if (tour == null) return@LoadableContent
                     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-                        if (tab == 0) item { TournamentInfo(tour) } else leaderboardItems(tour, open)
+                        if (tab == 0) {
+                            item { TournamentInfo(tour) }
+                            scorecardItems(scP, scRound) { scRound = it }
+                        } else {
+                            leaderboardItems(tour, open, view) { view = it }
+                        }
                     }
                 }
             }
@@ -353,7 +432,6 @@ private fun TournamentInfo(t: GolfTournament) {
                 }
             }
         }
-        InlineNote("Course details (par, yardage, hole layout) aren't included in ESPN's golf data.")
     }
 }
 
@@ -504,6 +582,153 @@ private fun GolferBio(g: Golfer) {
                 }
                 if (i < rows.lastIndex) HorizontalDivider()
             }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- hole-by-hole scorecard
+
+/** Diverging colors (validated for light/dark and colorblind separation): red = under par, blue = over par. */
+private data class ParColors(val under: Color, val even: Color, val over: Color)
+
+@Composable
+private fun parColors(): ParColors =
+    if (ColorMath.isDark(MaterialTheme.colorScheme.background.toArgb())) {
+        ParColors(Color(0xFFE66767), Color(0xFF383835), Color(0xFF3987E5))
+    } else {
+        ParColors(Color(0xFFE34948), Color(0xFFF0EFEC), Color(0xFF2A78D6))
+    }
+
+private fun vsParText(d: Double): String = when {
+    Math.abs(d) < 0.005 -> "E"
+    d > 0 -> "+" + "%.2f".format(d)
+    else -> "%.2f".format(d)
+}
+
+private fun LazyListScope.scorecardItems(p: Polled<CourseScorecard>?, round: Int?, onRound: (Int?) -> Unit) {
+    item(key = "sc-title") {
+        Text(
+            "Hole by hole",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 16.dp, top = 12.dp),
+        )
+    }
+    val sc = p?.state?.data
+    when {
+        p == null -> return
+        sc == null && p.state.error != null -> { item(key = "sc-err") { InlineNote("Couldn't load hole-by-hole scores.") }; return }
+        sc == null -> { item(key = "sc-load") { InlineLoading() }; return }
+        sc.scores.isEmpty() -> { item(key = "sc-empty") { InlineNote("Hole-by-hole scores appear once play begins.") }; return }
+    }
+    val card = sc!!
+    val holes = card.holes(round?.takeIf { it in card.rounds })
+    if (card.rounds.size > 1) {
+        item(key = "sc-rounds") {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilterChip(selected = round == null, onClick = { onRound(null) }, label = { Text("All rounds") })
+                card.rounds.forEach { r -> FilterChip(selected = round == r, onClick = { onRound(r) }, label = { Text("R$r") }) }
+            }
+        }
+    }
+    item(key = "sc-summary") { ScorecardSummary(holes) }
+    item(key = "sc-legend") { ScorecardLegend() }
+    holes.forEach { h ->
+        if (h.hole == 1 || h.hole == 10) {
+            item(key = "sc-nine-${h.hole}") {
+                val nine = holes.filter { if (h.hole == 1) it.hole <= 9 else it.hole >= 10 }
+                Text(
+                    (if (h.hole == 1) "Front nine" else "Back nine") + "  ·  Par ${nine.sumOf { it.par }}",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 2.dp),
+                )
+            }
+        }
+        item(key = "sc-h-${h.hole}") { HoleRow(h) }
+    }
+    item(key = "sc-note") {
+        InlineNote(
+            "Built from every player's hole-by-hole scores. ESPN doesn't publish course maps, hole yardages, or pin positions; " +
+                "a hole that plays much harder in one round than another often reflects a tougher pin that day.",
+        )
+    }
+}
+
+@Composable
+private fun ScorecardSummary(holes: List<HoleStat>) {
+    if (holes.isEmpty()) return
+    val hardest = holes.maxByOrNull { it.vsPar }!!
+    val easiest = holes.minByOrNull { it.vsPar }!!
+    val field = holes.sumOf { it.average } - holes.sumOf { it.par }
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        Column(Modifier.padding(14.dp)) {
+            Text("Par ${holes.sumOf { it.par }}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            SummaryLine("Field scoring average", vsParText(field) + " per round")
+            SummaryLine("Hardest hole", "#${hardest.hole} (par ${hardest.par}, ${vsParText(hardest.vsPar)})")
+            SummaryLine("Easiest hole", "#${easiest.hole} (par ${easiest.par}, ${vsParText(easiest.vsPar)})")
+        }
+    }
+}
+
+@Composable
+private fun SummaryLine(k: String, v: String) {
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+        Text(k, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(v, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun ScorecardLegend() {
+    val c = parColors()
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        listOf("Birdie or better" to c.under, "Par" to c.even, "Bogey or worse" to c.over).forEach { (label, color) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(color))
+                Spacer(Modifier.width(5.dp))
+                Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/** Hole #, par, field average and vs-par, and a bar of how the field scored. Tap for the exact counts. */
+@Composable
+private fun HoleRow(h: HoleStat) {
+    var open by rememberSaveable(h.hole) { mutableStateOf(false) }
+    val c = parColors()
+    Column(Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = 16.dp, vertical = 7.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${h.hole}", Modifier.width(26.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+            Text("Par ${h.par}", Modifier.width(48.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("%.2f".format(h.average), Modifier.width(42.dp), textAlign = TextAlign.End, style = MaterialTheme.typography.bodyMedium)
+            Text(vsParText(h.vsPar), Modifier.width(50.dp), textAlign = TextAlign.End, style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(12.dp))
+            val segments = listOf(h.eagleOrBetter + h.birdies to c.under, h.pars to c.even, h.bogeys + h.doublePlus to c.over)
+                .filter { it.first > 0 }
+            Row(Modifier.weight(1f).height(12.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                segments.forEachIndexed { i, (n, color) ->
+                    val shape = RoundedCornerShape(
+                        topStart = if (i == 0) 4.dp else 0.dp, bottomStart = if (i == 0) 4.dp else 0.dp,
+                        topEnd = if (i == segments.lastIndex) 4.dp else 0.dp, bottomEnd = if (i == segments.lastIndex) 4.dp else 0.dp,
+                    )
+                    Box(Modifier.weight(n.toFloat()).fillMaxHeight().clip(shape).background(color))
+                }
+            }
+        }
+        if (open) {
+            Text(
+                "Eagles ${h.eagleOrBetter}  ·  Birdies ${h.birdies}  ·  Pars ${h.pars}  ·  Bogeys ${h.bogeys}  ·  Double+ ${h.doublePlus}  ·  ${h.count} scores",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 26.dp, top = 4.dp),
+            )
         }
     }
 }

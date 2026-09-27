@@ -22,7 +22,37 @@ data class GolfEntry(
     val sortOrder: Int,
     /** CUT / WD / DQ etc., empty if still playing or finished normally */
     val outStatus: String,
+    /** Per round: strokes and score to par, in round order. */
+    val roundLines: List<RoundLine> = emptyList(),
 )
+
+data class RoundLine(val round: Int, val strokes: Int, val toPar: Int)
+
+/** Leaderboard as it stood at the end of a given round. */
+data class RoundStanding(val position: String, val entry: GolfEntry, val total: Int, val roundToPar: Int, val roundStrokes: Int)
+
+/** How the field played one hole (optionally in one round). */
+data class HoleStat(
+    val hole: Int,
+    val par: Int,
+    /** Average strokes */
+    val average: Double,
+    val eagleOrBetter: Int,
+    val birdies: Int,
+    val pars: Int,
+    val bogeys: Int,
+    val doublePlus: Int,
+) {
+    val count get() = eagleOrBetter + birdies + pars + bogeys + doublePlus
+    val vsPar get() = average - par
+}
+
+data class HoleScore(val round: Int, val hole: Int, val strokes: Int, val toPar: Int)
+
+/** All hole scores for one tournament; [holes] summarizes them for every round or just one. */
+data class CourseScorecard(val rounds: List<Int>, val scores: List<HoleScore>) {
+    fun holes(round: Int?): List<HoleStat> = Golf.summarize(if (round == null) scores else scores.filter { it.round == round })
+}
 
 data class GolfTeamScore(val name: String, val score: String, val logo: String)
 
@@ -188,6 +218,12 @@ object Golf {
                 rounds = lines.filter { it.has("value") }.sortedBy { it.optInt("period", 0) }.map { it.numText("value") },
                 sortOrder = c.optInt("sortOrder", Int.MAX_VALUE),
                 outStatus = out,
+                roundLines = lines.mapNotNull { l ->
+                    val strokes = l.optDouble("value", Double.NaN)
+                    val r = l.optInt("period", 0)
+                    val tp = toParValue(l.str("displayValue"))
+                    if (strokes.isNaN() || strokes <= 0 || r <= 0 || tp == null) null else RoundLine(r, strokes.toInt(), tp)
+                }.sortedBy { it.round },
             )
         }.sortedWith(compareBy<GolfEntry>({ if (it.outStatus.isNotEmpty()) 1 else 0 }, { it.sortOrder }))
         return GolfTournament(
@@ -210,6 +246,89 @@ object Golf {
             entries = entries,
         )
     }
+
+    /** "-6" -> -6, "E" -> 0, "+2" -> 2; null if not a to-par value. */
+    fun toParValue(s: String): Int? {
+        val t = s.trim()
+        if (t.equals("E", true)) return 0
+        return t.removePrefix("+").toIntOrNull()
+    }
+
+    fun toParText(v: Int): String = when {
+        v == 0 -> "E"
+        v > 0 -> "+$v"
+        else -> "$v"
+    }
+
+    /** Rounds whose results are final, so "standings after round N" is meaningful. */
+    fun completedRounds(t: GolfTournament): List<Int> {
+        val played = t.entries.flatMap { e -> e.roundLines.map { it.round } }.toSet()
+        return played.filter { r ->
+            t.state == "post" || r < t.currentRound ||
+                (r == t.currentRound && t.statusDetail.contains("complete", ignoreCase = true))
+        }.sorted()
+    }
+
+    /** Rebuilds the leaderboard as of the end of [round], from each player's round scores. Ties share a "T" position. */
+    fun standingsAfter(entries: List<GolfEntry>, round: Int): List<RoundStanding> {
+        val rows = entries.mapNotNull { e ->
+            val lines = (1..round).map { r -> e.roundLines.firstOrNull { it.round == r } ?: return@mapNotNull null }
+            val last = lines.last()
+            Triple(e, lines.sumOf { it.toPar }, last)
+        }.sortedWith(compareBy({ it.second }, { it.first.name }))
+        return rows.map { (e, total, last) ->
+            val better = rows.count { it.second < total }
+            val tied = rows.count { it.second == total }
+            RoundStanding(
+                position = (if (tied > 1) "T" else "") + (better + 1),
+                entry = e,
+                total = total,
+                roundToPar = last.toPar,
+                roundStrokes = last.strokes,
+            )
+        }
+    }
+
+    suspend fun scorecard(eventId: String): CourseScorecard = parseScorecard(Net.getJson("$SCOREBOARD/$eventId"))
+
+    /**
+     * Hole-by-hole field stats from every player's hole scores (scoreboard feed). Each hole's par is
+     * worked out as strokes minus score-to-par, taking the most common result across the field.
+     */
+    fun parseScorecard(root: JSONObject): CourseScorecard {
+        val comps = (root.arr("competitions").objects().firstOrNull()
+            ?: root.arr("events").objects().firstOrNull()?.arr("competitions").objects()?.firstOrNull())
+            ?.arr("competitors").objects().orEmpty()
+        val scores = mutableListOf<HoleScore>()
+        for (c in comps) for (rl in c.arr("linescores").objects()) {
+            val round = rl.optInt("period", 0)
+            for (h in rl.arr("linescores").objects()) {
+                val strokes = h.optDouble("value", Double.NaN)
+                val tp = toParValue(h.obj("scoreType")?.str("displayValue").orEmpty())
+                val hole = h.optInt("period", 0)
+                if (round > 0 && hole in 1..18 && !strokes.isNaN() && strokes > 0 && tp != null) {
+                    scores += HoleScore(round, hole, strokes.toInt(), tp)
+                }
+            }
+        }
+        return CourseScorecard(scores.map { it.round }.distinct().sorted(), scores)
+    }
+
+    fun summarize(scores: List<HoleScore>): List<HoleStat> =
+        scores.groupBy { it.hole }.toSortedMap().map { (hole, list) ->
+            val par = list.groupingBy { it.strokes - it.toPar }.eachCount().maxByOrNull { it.value }!!.key
+            val tps = list.map { it.toPar }
+            HoleStat(
+                hole = hole,
+                par = par,
+                average = list.map { it.strokes }.average(),
+                eagleOrBetter = tps.count { it <= -2 },
+                birdies = tps.count { it == -1 },
+                pars = tps.count { it == 0 },
+                bogeys = tps.count { it == 1 },
+                doublePlus = tps.count { it >= 2 },
+            )
+        }
 
     private val teeFmt = java.time.format.DateTimeFormatter.ofPattern("h:mm a")
 
