@@ -21,7 +21,7 @@
             android:id="@+id/widget_logo"
             android:layout_width="26dp"
             android:layout_height="26dp"
-            android:contentDescription="Open Scoreline"
+            android:contentDescription="Open Scoreology"
             android:src="@drawable/ic_stat_score" />
 
         <TextView

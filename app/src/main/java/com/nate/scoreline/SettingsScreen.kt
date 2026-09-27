@@ -153,7 +153,7 @@ fun SettingsScreen(modifier: Modifier, open: (Route) -> Unit) {
             Hint(
                 "Alerts check about every 15 minutes (Android's minimum for background work) and can be delayed " +
                     "further when the phone is idle. For play-by-play, keep the app open: live screens refresh every 20 to 30 seconds. " +
-                    "If alerts seem to stop, set Scoreline's battery usage to Unrestricted in Android settings.",
+                    "If alerts seem to stop, set Scoreology's battery usage to Unrestricted in Android settings.",
             )
         }
 

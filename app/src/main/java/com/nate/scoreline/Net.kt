@@ -15,7 +15,7 @@ object Net {
         conn.connectTimeout = 10_000
         conn.readTimeout = 20_000
         conn.setRequestProperty("Accept", "application/json")
-        conn.setRequestProperty("User-Agent", "Scoreline/1.0 (personal Android app)")
+        conn.setRequestProperty("User-Agent", "Scoreology/1.0 (personal Android app)")
         try {
             val code = conn.responseCode
             if (code !in 200..299) throw IOException("HTTP $code from ${URL(url).host}")

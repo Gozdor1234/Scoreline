@@ -1,4 +1,4 @@
-# Scoreline
+# Scoreology
 
 Personal Android app for NFL, college football, and F1: live scores, game detail with team and player stats, standings, favorites, and alerts.
 
@@ -21,7 +21,7 @@ Polling only runs while the app is on screen.
 3. On the empty repo page, click **uploading an existing file**. Open the unzipped `scoreline` folder, select **everything inside it** (not the folder itself), and drag it onto the page. Commit to `main`.
 4. Confirm the repo now shows a `.github/workflows/build-apk.yml` file. Some browsers skip hidden folders on drag-and-drop. If it's missing: **Add file > Create new file**, type `.github/workflows/build-apk.yml` as the name, paste in that file's contents from the zip, and commit.
 5. Open the **Actions** tab. The "Build APK" run starts automatically (first run is roughly 5 to 8 minutes). You can also start it manually with **Run workflow**.
-6. When the run shows a green check, open it and download **Scoreline-APK-N** under Artifacts. GitHub delivers it as a .zip; the .apk is inside.
+6. When the run shows a green check, open it and download **Scoreology-APK-N** under Artifacts. GitHub delivers it as a .zip; the .apk is inside.
 
 ## Install on the phone
 
@@ -34,7 +34,7 @@ To update: push any change (or click Run workflow), download the new APK, and in
 ## Things to know
 
 - **Data sources.** Scores, stats, and NFL/college standings come from ESPN's public but *undocumented* endpoints. They are free and fast but can change without notice; if a screen suddenly shows "Couldn't load data", that's the likely cause and the parser needs a tweak. F1 standings and results come from the Jolpica F1 API (documented, community-run successor to Ergast). The F1 weekend running order comes from ESPN and is not official timing.
-- **Alerts** are checked about every 15 minutes, which is Android's floor for background work, and Doze can delay them further while the phone sits idle. They are close-to-live, not play-by-play. For reliability set the app's battery usage to **Unrestricted** (Settings > Apps > Scoreline > Battery). Alert types: kickoff, score change (optional), final; F1 qualifying, sprint, and race results with the top 3.
+- **Alerts** are checked about every 15 minutes, which is Android's floor for background work, and Doze can delay them further while the phone sits idle. They are close-to-live, not play-by-play. For reliability set the app's battery usage to **Unrestricted** (Settings > Apps > Scoreology > Battery). Alert types: kickoff, score change (optional), final; F1 qualifying, sprint, and race results with the top 3.
 - **Keep the repo private.** The signing key (`keystore/scoreline.jks`) and its password are committed so every build can update the installed app. Anyone holding that key could sign an "update" your phone would accept. For a stricter setup, move the key into GitHub Actions secrets.
 - **Personal use.** ESPN's data is not licensed for redistribution; don't publish this app.
 

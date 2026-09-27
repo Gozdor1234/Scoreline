@@ -41,12 +41,12 @@ jobs:
           done
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk "Scoreline-${{ github.run_number }}.apk"
+        run: cp app/build/outputs/apk/release/app-release.apk "Scoreology-${{ github.run_number }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Scoreline-APK-${{ github.run_number }}
-          path: Scoreline-*.apk
+          name: Scoreology-APK-${{ github.run_number }}
+          path: Scoreology-*.apk
           retention-days: 30
 
       # Also publish as a GitHub Release: a direct .apk download (no zip, no sign-in),
@@ -55,7 +55,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "build-${{ github.run_number }}" "Scoreline-${{ github.run_number }}.apk" \
-            --title "Scoreline build ${{ github.run_number }}" \
-            --notes "Tap Scoreline-${{ github.run_number }}.apk below to download, then open it to install." \
+          gh release create "build-${{ github.run_number }}" "Scoreology-${{ github.run_number }}.apk" \
+            --title "Scoreology build ${{ github.run_number }}" \
+            --notes "Tap Scoreology-${{ github.run_number }}.apk below to download, then open it to install." \
             --latest
