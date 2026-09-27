@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+: header follows the phone's color palette. -->
+    <color name="widget_header">@android:color/system_accent1_600</color>
+</resources>

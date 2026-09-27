@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches the app's gray-blue dark theme. -->
+    <color name="widget_bg">#FF1B2230</color>
+    <color name="widget_text">#FFE6EAF0</color>
+    <color name="widget_subtext">#FFAEB6C4</color>
+    <color name="widget_pill">#FF2A3445</color>
+    <color name="widget_header">#FF34448F</color>
+    <color name="widget_live">#FFFF6B61</color>
+</resources>

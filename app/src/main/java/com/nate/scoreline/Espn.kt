@@ -41,6 +41,8 @@ data class TeamSide(
     val winner: Boolean,
     val homeAway: String,
     val linescores: List<String>,
+    /** Nickname, e.g. "Lions" (ESPN shortDisplayName). */
+    val shortName: String = "",
 )
 
 data class Game(
@@ -229,6 +231,7 @@ object Espn {
             winner = c.optBoolean("winner", false),
             homeAway = c.str("homeAway"),
             linescores = lines,
+            shortName = t.str("shortDisplayName"),
         )
     }
 
