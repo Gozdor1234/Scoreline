@@ -71,6 +71,10 @@ fun GameDetailScreen(league: League, eventId: String, onBack: () -> Unit, open: 
     var section by rememberSaveable { mutableIntStateOf(fav.tabOrder.first()) }
     var homeSide by rememberSaveable { mutableIntStateOf(0) }
     var collapsed by remember { mutableStateOf(setOf<String>()) } // drive ids the user has folded up
+    val ctx = LocalContext.current
+    val fdP = if (fav.showOdds && fav.oddsApiKey.isNotBlank()) {
+        rememberPolled<FanDuelOdds.Book?>("fd-${league.name}-${fav.oddsApiKey}", { 30 * 60_000L }) { FanDuelOdds.get(ctx, league) }
+    } else null
 
     Scaffold(
         topBar = {
@@ -96,6 +100,8 @@ fun GameDetailScreen(league: League, eventId: String, onBack: () -> Unit, open: 
                                 g, fav,
                                 awayColorHex = g.away.color.ifEmpty { d.teamColors[g.away.id].orEmpty() },
                                 homeColorHex = g.home.color.ifEmpty { d.teamColors[g.home.id].orEmpty() },
+                                odds = if (!fav.showOdds || g.state != "pre") null
+                                else fdP?.state?.data?.let { OddsParse.match(it.events, g)?.odds } ?: g.odds,
                                 onTeam = { t -> open(Route.Team(league, t.id)) },
                             )
                         }
@@ -176,12 +182,20 @@ private fun EmptyNote(text: String) {
 }
 
 @Composable
-private fun GameHeader(g: Game, fav: Favorites, awayColorHex: String, homeColorHex: String, onTeam: (TeamSide) -> Unit) {
+private fun GameHeader(
+    g: Game,
+    fav: Favorites,
+    awayColorHex: String,
+    homeColorHex: String,
+    odds: GameOdds?,
+    onTeam: (TeamSide) -> Unit,
+) {
     val darkUi = ColorMath.isDark(MaterialTheme.colorScheme.background.toArgb())
     val awayColor = teamColor(awayColorHex, g.away.altColor, darkUi)
     val homeColor = teamColor(homeColorHex, g.home.altColor, darkUi)
+    Column(Modifier.fillMaxWidth().background(matchupBrush(awayColor, homeColor))) {
     Row(
-        Modifier.fillMaxWidth().background(matchupBrush(awayColor, homeColor)).padding(16.dp),
+        Modifier.fillMaxWidth().padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         HeaderTeam(g.away, g.league, fav, Modifier.weight(1f)) { onTeam(g.away) }
@@ -203,6 +217,10 @@ private fun GameHeader(g: Game, fav: Favorites, awayColorHex: String, homeColorH
             }
         }
         HeaderTeam(g.home, g.league, fav, Modifier.weight(1f)) { onTeam(g.home) }
+    }
+    if (odds != null && g.state == "pre") {
+        OddsTable(odds, g.away.abbr, g.home.abbr, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp), divider = false)
+    }
     }
 }
 

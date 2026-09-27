@@ -99,6 +99,15 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
         else -> view
     }
     val pinId = if (cfb) fav.pinnedCfb else null
+    // FanDuel lines when an Odds API key is set (cached 3 h); otherwise ESPN's DraftKings lines on each game.
+    val ctx = LocalContext.current
+    val fdP = if (fav.showOdds && fav.oddsApiKey.isNotBlank()) {
+        rememberPolled<FanDuelOdds.Book?>("fd-${league.name}-${fav.oddsApiKey}", { 30 * 60_000L }) { FanDuelOdds.get(ctx, league) }
+    } else null
+    val oddsFor: (Game) -> GameOdds? = { g ->
+        if (!fav.showOdds || g.state != "pre") null
+        else fdP?.state?.data?.let { OddsParse.match(it.events, g)?.odds } ?: g.odds
+    }
     val pinFetch = if (pinId != null && group != pinId) pinId else null
 
     val polled = rememberPolled<ScoresData>(
@@ -196,10 +205,10 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
                 ) {
                     if (pinnedGames.isNotEmpty()) {
                         item { ListLabel("★ Pinned: ${Conferences.name(pinId)}") }
-                        gameItems(pinnedGames, twoCol, zoom) { g -> GameCard(g, isFav(g)) { open(Route.GameDetail(league, g.id)) } }
+                        gameItems(pinnedGames, twoCol, zoom) { g -> GameCard(g, isFav(g), oddsFor(g)) { open(Route.GameDetail(league, g.id)) } }
                         if (games.isNotEmpty()) item { ListLabel(if (view == "top25") "Top 25" else "All FBS") }
                     }
-                    gameItems(games, twoCol, zoom) { g -> GameCard(g, isFav(g)) { open(Route.GameDetail(league, g.id)) } }
+                    gameItems(games, twoCol, zoom) { g -> GameCard(g, isFav(g), oddsFor(g)) { open(Route.GameDetail(league, g.id)) } }
                     item {
                         Text(
                             agoText(polled.state.updatedAt),
@@ -322,7 +331,7 @@ private fun CollegeViewRow(fav: Favorites, view: String) {
 }
 
 @Composable
-fun GameCard(g: Game, favorite: Boolean, onClick: () -> Unit) {
+fun GameCard(g: Game, favorite: Boolean, odds: GameOdds? = null, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         colors = if (favorite) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
@@ -350,6 +359,7 @@ fun GameCard(g: Game, favorite: Boolean, onClick: () -> Unit) {
                     else -> Text(g.detail, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 }
             }
+            if (odds != null && g.state == "pre") OddsTable(odds, g.away.abbr, g.home.abbr, Modifier.padding(top = 8.dp))
         }
     }
 }

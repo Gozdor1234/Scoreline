@@ -61,6 +61,13 @@ class Favorites private constructor(context: Context) {
     var scoresZoom by mutableStateOf(prefs.getFloat(KEY_ZOOM, 1f).coerceIn(ZOOM_MIN, ZOOM_MAX))
         private set
 
+    /** Show pre-game betting lines on upcoming games. */
+    var showOdds by mutableStateOf(prefs.getBoolean(KEY_SHOW_ODDS, true))
+        private set
+    /** The Odds API key; when set, FanDuel lines replace ESPN's DraftKings lines. */
+    var oddsApiKey by mutableStateOf(prefs.getString(KEY_ODDS_KEY, "") ?: "")
+        private set
+
     fun pinned(league: League): String? = if (league == League.NFL) pinnedNfl else pinnedCfb
 
     fun isFavTeam(league: League, id: String) = "${league.name}:$id" in teams
@@ -104,6 +111,8 @@ class Favorites private constructor(context: Context) {
         prefs.edit().putString(if (league == League.NFL) KEY_PIN_NFL else KEY_PIN_CFB, next).apply()
     }
 
+    fun updateShowOdds(on: Boolean) { showOdds = on; prefs.edit().putBoolean(KEY_SHOW_ODDS, on).apply() }
+    fun updateOddsApiKey(key: String) { oddsApiKey = key.trim(); prefs.edit().putString(KEY_ODDS_KEY, oddsApiKey).apply() }
     fun updateScoresZoom(z: Float) {
         scoresZoom = z.coerceIn(ZOOM_MIN, ZOOM_MAX)
         prefs.edit().putFloat(KEY_ZOOM, scoresZoom).apply()
@@ -156,6 +165,8 @@ class Favorites private constructor(context: Context) {
         private const val KEY_PIN_CFB = "pin_cfb"
         private const val KEY_CUSTOM_ON = "custom_colors_on"
         private const val KEY_ZOOM = "scores_zoom"
+        private const val KEY_SHOW_ODDS = "show_odds"
+        private const val KEY_ODDS_KEY = "odds_api_key"
         const val ZOOM_MIN = 0.6f
         const val ZOOM_MAX = 1.5f
         private const val KEY_CUSTOM_PREFIX = "custom_color_"

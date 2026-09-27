@@ -60,6 +60,8 @@ data class Game(
     val possessionTeamId: String?,
     val downDistance: String,
     val broadcast: String,
+    /** Pre-game lines from ESPN's feed (DraftKings), if posted. */
+    val odds: GameOdds? = null,
 ) {
     val isLive get() = state == "in"
     val matchup get() = "${away.abbr} @ ${home.abbr}"
@@ -218,6 +220,7 @@ object Espn {
             downDistance = situation?.str("shortDownDistanceText")?.ifEmpty { null }
                 ?: situation?.str("downDistanceText") ?: "",
             broadcast = broadcast,
+            odds = comp.arr("odds").objects().firstNotNullOfOrNull { OddsParse.espn(it, away.abbr, home.abbr) },
         )
     }
 
@@ -252,7 +255,11 @@ object Espn {
 
     fun parseSummary(root: JSONObject, league: League): GameDetail {
         val header = root.obj("header")
-        val game = header?.let { parseEvent(it, league) }
+        val game = header?.let { parseEvent(it, league) }?.let { g ->
+            // The game page's feed keeps betting lines in "pickcenter" rather than on the event.
+            if (g.odds != null) g
+            else g.copy(odds = root.arr("pickcenter").objects().firstNotNullOfOrNull { OddsParse.espn(it, g.away.abbr, g.home.abbr) })
+        }
         val box = root.obj("boxscore")
 
         // Team stats: pair away/home by label.

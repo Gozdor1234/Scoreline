@@ -48,6 +48,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -156,6 +159,10 @@ fun SettingsScreen(modifier: Modifier, open: (Route) -> Unit) {
                     "If alerts seem to stop, set Scoreology's battery usage to Unrestricted in Android settings.",
             )
         }
+
+        item { SectionHeader("Betting odds") }
+        item { SwitchRow("Show odds on upcoming games", fav.showOdds) { fav.updateShowOdds(it) } }
+        item { OddsKeySettings(fav) }
 
         item { SectionHeader("Appearance") }
         item {
@@ -368,6 +375,76 @@ fun DriverPickerScreen(onBack: () -> Unit) {
                         PickRow(d.name, d.team, "", fav.isFavDriver(d.name)) { fav.toggleDriver(d.name) }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * The Odds API key entry. With a key, games show FanDuel lines; without one, ESPN's DraftKings lines.
+ * Shows remaining free credits so the 500/month limit is visible.
+ */
+@Composable
+private fun OddsKeySettings(fav: Favorites) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var draft by rememberSaveable { mutableStateOf(fav.oddsApiKey) }
+    var busy by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { FanDuelOdds.load(ctx) }
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Text(
+            if (fav.oddsApiKey.isBlank()) {
+                "Showing DraftKings lines from ESPN. For FanDuel lines, get a free API key from the-odds-api.com (500 credits a month) and paste it below."
+            } else {
+                "Showing FanDuel lines from The Odds API. Lines refresh at most every 3 hours per league to save credits; games FanDuel hasn't priced fall back to DraftKings."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = {
+            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://the-odds-api.com/")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }) { Text("Open the-odds-api.com") }
+        OutlinedTextField(
+            value = draft,
+            onValueChange = { draft = it },
+            label = { Text("The Odds API key") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+            OutlinedButton(
+                enabled = draft.trim() != fav.oddsApiKey,
+                onClick = {
+                    fav.updateOddsApiKey(draft)
+                    FanDuelOdds.clear(ctx)
+                },
+            ) { Text("Save key") }
+            if (fav.oddsApiKey.isNotBlank()) {
+                OutlinedButton(
+                    enabled = !busy,
+                    onClick = {
+                        busy = true
+                        scope.launch {
+                            FanDuelOdds.get(ctx, League.NFL, force = true)
+                            FanDuelOdds.get(ctx, League.CFB, force = true)
+                            busy = false
+                        }
+                    },
+                ) { Text(if (busy) "Updating…" else "Update now (6 credits)") }
+            }
+        }
+        if (fav.oddsApiKey.isNotBlank()) {
+            val credits = FanDuelOdds.creditsLeft
+            val status = listOfNotNull(
+                credits?.let { "$it credits left this month" },
+                FanDuelOdds.lastFetch.takeIf { it > 0 }?.let { "last updated ${agoText(it).removePrefix("Updated ").ifBlank { "just now" }}" },
+            ).joinToString("  ·  ")
+            if (status.isNotBlank()) {
+                Text(status, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp))
+            }
+            FanDuelOdds.lastError?.let {
+                Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp))
             }
         }
     }
