@@ -28,7 +28,33 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      # The signing key is protected by the SIGNING_PASSWORD secret (Settings > Secrets and
+      # variables > Actions). On the first run with the secret set, this creates the key and
+      # saves the encrypted keystore to the repo; later runs reuse it.
+      - name: Prepare signing key
+        env:
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: |
+          if [ -z "$SIGNING_PASSWORD" ]; then
+            echo "::error::Missing SIGNING_PASSWORD secret. Add it under Settings > Secrets and variables > Actions, then run this again."
+            exit 1
+          fi
+          if [ ! -f keystore/release.p12 ]; then
+            mkdir -p keystore
+            keytool -genkeypair -storetype PKCS12 -keystore keystore/release.p12 -alias scoreology \
+              -keyalg RSA -keysize 4096 -validity 36500 \
+              -storepass "$SIGNING_PASSWORD" -keypass "$SIGNING_PASSWORD" \
+              -dname "CN=ChickenMyBobbers, O=Scoreology"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add keystore/release.p12
+            git commit -m "Add encrypted release signing key"
+            git push
+          fi
+
       - name: Build release APK
+        env:
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: |
           set -o pipefail
           gradle assembleRelease --no-daemon 2>&1 | tee build.log
@@ -65,7 +91,7 @@ jobs:
           RANGE=${PREV:+$PREV..}HEAD
           : > changes.md
           for c in $(git rev-list --reverse "$RANGE"); do
-            if git diff-tree --no-commit-id --name-only -r "$c" | grep -qvE '^(README\.md|docs/|\.github/release-notes\.json)'; then
+            if git diff-tree --no-commit-id --name-only -r "$c" | grep -qvE '^(README\.md|docs/|keystore/|\.github/release-notes\.json)'; then
               echo "- $(git log -1 --format=%s "$c")" >> changes.md
             fi
           done

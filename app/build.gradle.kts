@@ -20,27 +20,24 @@ android {
         versionName = "1.0.$runNumber"
     }
 
-    // One fixed key for every build. Without this, each CI run would sign with a
-    // throwaway debug key and Android would refuse to update the installed app
-    // (you would have to uninstall and lose your favorites each time).
-    // Keep the GitHub repo PRIVATE: anyone with this keystore could sign an
-    // "update" that your phone would accept.
+    // Release signing key: keystore/release.p12, encrypted with the SIGNING_PASSWORD
+    // GitHub secret. The file is useless without that password, which lives only in
+    // GitHub's secret settings (never in the code). CI creates the key on first run.
+    val signingPassword = System.getenv("SIGNING_PASSWORD")
     signingConfigs {
-        create("personal") {
-            storeFile = rootProject.file("keystore/scoreline.jks")
-            storePassword = "scoreline"
-            keyAlias = "scoreline"
-            keyPassword = "scoreline"
+        create("release") {
+            storeFile = rootProject.file("keystore/release.p12")
+            storeType = "pkcs12"
+            storePassword = signingPassword
+            keyAlias = "scoreology"
+            keyPassword = signingPassword
         }
     }
 
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("personal")
-        }
-        getByName("debug") {
-            signingConfig = signingConfigs.getByName("personal")
+            if (!signingPassword.isNullOrEmpty()) signingConfig = signingConfigs.getByName("release")
         }
     }
 

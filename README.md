@@ -112,7 +112,7 @@ app/src/main/java/com/nate/scoreline/
 ## ⚠️ Notes
 
 - Scoreology is a personal hobby project. It isn't affiliated with or endorsed by ESPN, the NFL, the NCAA, Formula 1, the PGA TOUR, FanDuel, or DraftKings. All team names and logos belong to their owners.
-- The APK signing key lives in this repo so the automated builds can sign updates. That's convenient, but anyone with the key could sign an APK that installs as an "update," so only install Scoreology from this repo's Releases page.
+- Releases are signed with a private key that only the automated build can unlock, so updates from this page can be trusted to come from the developer.
 
 ---
 
