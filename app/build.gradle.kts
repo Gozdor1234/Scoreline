@@ -21,7 +21,7 @@ android {
     }
 
     // Release signing key: keystore/release.p12, encrypted with the SIGNING_PASSWORD
-    // GitHub secret. The file is useless without that password, which lives only in
+    // GitHub secret. The keystore file is useless without that password, which lives only in
     // GitHub's secret settings (never in the code). CI creates the key on first run.
     val signingPassword = System.getenv("SIGNING_PASSWORD")
     signingConfigs {
