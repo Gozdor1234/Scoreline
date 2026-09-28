@@ -247,9 +247,9 @@ fun SettingsScreen(modifier: Modifier, open: (Route) -> Unit) {
         item { SectionHeader("About the developer") }
         item {
             Text(
-                "Scoreology is built by ChickenMyBobbers, its solo developer. It started as a fun weekend " +
-                    "project: take the best parts of all the sports apps I was using and put them into one, " +
-                    "with no ads, no bulk, and no nonsense.",
+                "Scoreology is a one-person project by ChickenMyBobbers. What started as a weekend project " +
+                    "turned into a single app with all the good parts of the sports apps out there, minus the " +
+                    "ads, bulk, and nonsense. I hope you enjoy!",
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
