@@ -244,6 +244,16 @@ fun SettingsScreen(modifier: Modifier, open: (Route) -> Unit) {
                     "F1 standings and results use the Jolpica F1 API. Personal use only.",
             )
         }
+        item { SectionHeader("About the developer") }
+        item {
+            Text(
+                "Scoreology is built by ChickenMyBobbers, its solo developer. It started as a fun weekend " +
+                    "project: take the best parts of all the sports apps I was using and put them into one, " +
+                    "with no ads, no bulk, and no nonsense.",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        }
         item { Spacer(Modifier.padding(24.dp)) }
     }
 
