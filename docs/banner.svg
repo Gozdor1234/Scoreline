@@ -4,10 +4,6 @@
       <stop offset="0" stop-color="#0B1A2E"/>
       <stop offset="1" stop-color="#1B2B45"/>
     </linearGradient>
-    <linearGradient id="field" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#008C00"/>
-      <stop offset="1" stop-color="#005E00"/>
-    </linearGradient>
     <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#3FD17A"/>
       <stop offset="1" stop-color="#4FA3FF"/>
@@ -18,16 +14,13 @@
     <line x1="0" y1="72" x2="1200" y2="72"/><line x1="0" y1="144" x2="1200" y2="144"/>
     <line x1="0" y1="216" x2="1200" y2="216"/><line x1="0" y1="288" x2="1200" y2="288"/>
   </g>
-  <!-- App icon: pitch -->
+  <!-- App icon: pitch on blue -->
   <g transform="translate(90,80)">
-    <rect width="200" height="200" rx="44" fill="url(#field)"/>
-    <g transform="translate(28,53) scale(0.48)" fill="none" stroke="#FFFFFF" stroke-width="8">
-      <rect x="0" y="0" width="296" height="213" rx="36"/>
-      <line x1="148" y1="0" x2="148" y2="213"/>
-      <circle cx="148" cy="106.5" r="57"/>
-      <path d="M0,52.5H29A20,20 0 0 1 49,72.5V140.5A20,20 0 0 1 29,160.5H0"/>
-      <path d="M296,52.5H267A20,20 0 0 0 247,72.5V140.5A20,20 0 0 0 267,160.5H296"/>
-      <circle cx="148" cy="106.5" r="11.5" fill="#FFFFFF" stroke="none"/>
+    <rect width="200" height="200" rx="52" fill="#0C5C8D"/>
+    <g transform="translate(-50,-50) scale(2.7778)">
+      <path fill="#2F7027" d="M32,35H76A4,4 0 0,1 80,39V69A4,4 0 0,1 76,73H32A4,4 0 0,1 28,69V39A4,4 0 0,1 32,35Z"/>
+      <path fill="none" stroke="#FFFFFF" stroke-width="1.1" d="M54,35V73 M43.7,54A10.3,10.3 0 1,0 64.3,54A10.3,10.3 0 1,0 43.7,54Z M28,44.25H35.5A2,2 0 0,1 37.5,46.25V61.75A2,2 0 0,1 35.5,63.75H28 M80,44.25H72.5A2,2 0 0,0 70.5,46.25V61.75A2,2 0 0,0 72.5,63.75H80"/>
+      <circle cx="54" cy="54" r="1.8" fill="#FFFFFF"/>
     </g>
   </g>
   <text x="340" y="170" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-size="92" font-weight="800" fill="#FFFFFF" letter-spacing="-2">Scoreology</text>

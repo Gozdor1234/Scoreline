@@ -1,19 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- App icon foreground: soccer pitch lines. Drawn in source-art pixel units, scaled into the 108 dp canvas
-     so the field stays inside the 66 dp safe zone (fully visible on circle and rounded-square masks). -->
+<!-- App icon foreground: green pitch with white markings on the blue background.
+     Sized so the pitch corners stay inside the 66 dp safe zone for circle masks. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <group android:scaleX="0.18181818181818182" android:scaleY="0.18181818181818182" android:translateX="17.727272727272727" android:translateY="17.727272727272727">
-        <path android:pathData="M87.5,93.0H311.5A36,36 0 0,1 347.5,129.0V270.0A36,36 0 0,1 311.5,306.0H87.5A36,36 0 0,1 51.5,270.0V129.0A36,36 0 0,1 87.5,93.0Z" android:strokeColor="#FFFFFFFF" android:strokeWidth="8">
-            <aapt:attr name="android:fillColor">
-                <gradient android:type="linear" android:startX="0" android:startY="93" android:endX="0" android:endY="306">
-                    <item android:offset="0" android:color="#FF007000" />
-                    <item android:offset="1" android:color="#FF005500" />
-                </gradient>
-            </aapt:attr>
-        </path>
-        <path android:pathData="M199.5,93.0V306.0 M142.5,200A57,57 0 1,0 256.5,200A57,57 0 1,0 142.5,200Z M51.5,145.5H80.5A20,20 0 0,1 100.5,165.5V233.5A20,20 0 0,1 80.5,253.5H51.5 M347.5,145.5H318.5A20,20 0 0,0 298.5,165.5V233.5A20,20 0 0,0 318.5,253.5H347.5" android:strokeColor="#FFFFFFFF" android:strokeWidth="8" />
-        <path android:pathData="M188,200A11.5,11.5 0 1,0 211,200A11.5,11.5 0 1,0 188,200Z" android:fillColor="#FFFFFFFF" />
-    </group>
+    <path android:fillColor="#FF2F7027"
+        android:pathData="M32,35H76A4,4 0 0,1 80,39V69A4,4 0 0,1 76,73H32A4,4 0 0,1 28,69V39A4,4 0 0,1 32,35Z" />
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.1" android:strokeLineCap="butt"
+        android:pathData="M54,35V73 M43.7,54A10.3,10.3 0 1,0 64.3,54A10.3,10.3 0 1,0 43.7,54Z M28,44.25H35.5A2,2 0 0,1 37.5,46.25V61.75A2,2 0 0,1 35.5,63.75H28 M80,44.25H72.5A2,2 0 0,0 70.5,46.25V61.75A2,2 0 0,0 72.5,63.75H80" />
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M52.2,54A1.8,1.8 0 1,0 55.8,54A1.8,1.8 0 1,0 52.2,54Z" />
 </vector>
