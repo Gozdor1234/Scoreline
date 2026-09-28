@@ -99,6 +99,8 @@ private fun WeekendView() {
     ) { F1.weekends() }
 
     // Tyre stints (OpenF1) and points (Jolpica), refreshed alongside the weekend data.
+    val appCtx = LocalContext.current
+    remember { F1Extras.init(appCtx) }
     var extras by remember { mutableStateOf<Map<String, SessionExtra>>(emptyMap()) }
     LaunchedEffect(polled.state.updatedAt) {
         val ws = polled.state.data ?: return@LaunchedEffect

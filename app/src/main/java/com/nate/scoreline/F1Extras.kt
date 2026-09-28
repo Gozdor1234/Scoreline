@@ -1,6 +1,7 @@
 package com.nate.scoreline
 
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -82,6 +83,30 @@ object F1ExtrasParse {
             .toMap()
     }
 
+    /** Meeting-wide stints -> session_key -> driverKey -> compounds in fitting order. */
+    fun tyresBySession(stints: JSONArray, numbers: Map<Int, String>): Map<Int, Map<String, List<Tyre>>> {
+        val bySession = HashMap<Int, JSONArray>()
+        for (i in 0 until stints.length()) {
+            val o = stints.optJSONObject(i) ?: continue
+            val k = o.optInt("session_key", 0)
+            if (k > 0) bySession.getOrPut(k) { JSONArray("[]") }.put(o)
+        }
+        return bySession.mapValues { (_, arr) -> tyres(arr, numbers) }
+    }
+
+    /** Compact text form for the on-device cache: "russell=MEDIUM,SOFT|verstappen=..." */
+    fun encodeTyres(m: Map<String, List<Tyre>>): String =
+        m.entries.joinToString("|") { (k, v) -> k + "=" + v.joinToString(",") { it.name } }
+
+    fun decodeTyres(s: String): Map<String, List<Tyre>> =
+        s.split('|').filter { '=' in it }.associate { e ->
+            e.substringBefore('=') to e.substringAfter('=').split(',').mapNotNull { n -> Tyre.entries.firstOrNull { it.name == n } }
+        }
+
+    fun encodePoints(m: Map<String, String>): String = m.entries.joinToString("|") { "${it.key}=${it.value}" }
+    fun decodePoints(s: String): Map<String, String> =
+        s.split('|').filter { '=' in it }.associate { it.substringBefore('=') to it.substringAfter('=') }
+
     fun schedule(root: JSONObject): List<JRound> =
         root.obj("MRData")?.obj("RaceTable")?.arr("Races").objects().map { r ->
             JRound(r.str("round"), r.str("date"), r.obj("Sprint")?.str("date")?.ifEmpty { null })
@@ -117,79 +142,121 @@ object F1ExtrasParse {
 }
 
 /**
- * Fetches and caches the extras. Finished sessions are cached for the app's lifetime,
- * so after the first load the weekend card makes no further OpenF1 calls.
+ * Fetches and caches the extras.
+ *
+ * Speed: OpenF1 is asked for the whole race weekend at once (one call for car numbers, one for
+ * every session's tyre stints, run in parallel), and Jolpica points load alongside. Results for
+ * finished sessions are also saved on the phone, so reopening the F1 tab shows them instantly.
  * OpenF1's free tier doesn't serve data during a live session; tyres then appear after it ends.
  */
 object F1Extras {
     private const val OPENF1 = "https://api.openf1.org/v1"
     private const val JOLPICA = "https://api.jolpi.ca/ergast/f1"
+    private const val DAY_MS = 24 * 3600_000L
 
-    private var sessionsYear = 0
-    private var sessionsAt = 0L
-    private var sessionsCache: List<F1ExtrasParse.OSession> = emptyList()
-    private val driversCache = HashMap<Int, Map<Int, String>>()
-    private val tyreCache = HashMap<Int, Map<String, List<Tyre>>>()
-    private var scheduleCache: Pair<Long, List<F1ExtrasParse.JRound>>? = null
-    private val pointsCache = HashMap<String, Map<String, String>>()
+    private var prefs: android.content.SharedPreferences? = null
 
-    suspend fun load(w: F1Weekend): Map<String, SessionExtra> {
+    /** Call once with any Context before load(); enables the on-phone cache. */
+    fun init(ctx: android.content.Context) {
+        if (prefs == null) prefs = ctx.applicationContext.getSharedPreferences("f1_extras", android.content.Context.MODE_PRIVATE)
+    }
+
+    private val mem = HashMap<String, String>()
+    private fun cached(key: String): String? = mem[key] ?: prefs?.getString(key, null)?.also { mem[key] = it }
+    private fun save(key: String, value: String, disk: Boolean) {
+        mem[key] = value
+        if (disk) prefs?.edit()?.putString(key, value)?.apply()
+    }
+    /** Time-limited text cache (value stored with its save time). */
+    private fun cachedFresh(key: String, maxAgeMs: Long): String? {
+        val raw = cached(key) ?: return null
+        val at = raw.substringBefore('\n').toLongOrNull() ?: return null
+        return if (System.currentTimeMillis() - at < maxAgeMs) raw.substringAfter('\n') else null
+    }
+    private fun saveFresh(key: String, value: String) = save(key, "${System.currentTimeMillis()}\n$value", disk = true)
+
+    private var lastMeetingFetch = HashMap<Int, Long>()
+
+    suspend fun load(w: F1Weekend): Map<String, SessionExtra> = coroutineScope {
         val started = w.sessions.filter { it.state != "pre" }
-        if (started.isEmpty()) return emptyMap()
-        val year = F1ExtrasParse.instant(started.first().date)?.atOffset(ZoneOffset.UTC)?.year ?: return emptyMap()
+        if (started.isEmpty()) return@coroutineScope emptyMap()
+        val year = F1ExtrasParse.instant(started.first().date)?.atOffset(ZoneOffset.UTC)?.year ?: return@coroutineScope emptyMap()
+
+        // Points (Jolpica) load in parallel with tyres (OpenF1).
+        val pointsJobs = started.associate { s -> s.id to async { pointsFor(s, year) } }
+
         val oSessions = runCatching { openF1Sessions(year) }.getOrDefault(emptyList())
+        val matched = started.associateWith { F1ExtrasParse.match(oSessions, it.date) }
+        val tyresBySession = HashMap<Int, Map<String, List<Tyre>>>()
+        matched.forEach { (s, o) ->
+            if (o != null && s.state == "post") cached("tyres-${o.key}")?.let { tyresBySession[o.key] = F1ExtrasParse.decodeTyres(it) }
+        }
+        val missing = matched.filter { (_, o) -> o != null && o.key !in tyresBySession }
+        val meetingKey = missing.values.firstNotNullOfOrNull { it?.meetingKey }
+        val recently = meetingKey?.let { System.currentTimeMillis() - (lastMeetingFetch[it] ?: 0L) < 60_000L } ?: true
+        if (meetingKey != null && !recently) {
+            lastMeetingFetch[meetingKey] = System.currentTimeMillis()
+            runCatching {
+                val numbersJob = async {
+                    cachedFresh("drivers-$meetingKey", DAY_MS)
+                        ?.let { t -> t.split('|').filter { ':' in it }.associate { it.substringBefore(':').toInt() to it.substringAfter(':') } }
+                        ?: F1ExtrasParse.driverNumbers(getArray("$OPENF1/drivers?meeting_key=$meetingKey")).also { m ->
+                            if (m.isNotEmpty()) saveFresh("drivers-$meetingKey", m.entries.joinToString("|") { "${it.key}:${it.value}" })
+                        }
+                }
+                val stintsJob = async { getArray("$OPENF1/stints?meeting_key=$meetingKey") }
+                val all = F1ExtrasParse.tyresBySession(stintsJob.await(), numbersJob.await())
+                all.forEach { (sessionKey, t) ->
+                    tyresBySession[sessionKey] = t
+                    val finished = matched.any { (s, o) -> o?.key == sessionKey && s.state == "post" }
+                    if (finished && t.isNotEmpty()) save("tyres-$sessionKey", F1ExtrasParse.encodeTyres(t), disk = true)
+                }
+            }
+        }
+
         val out = HashMap<String, SessionExtra>()
         for (s in started) {
-            val o = F1ExtrasParse.match(oSessions, s.date)
-            val tyres = if (o != null) runCatching { tyres(o, finished = s.state == "post") }.getOrDefault(emptyMap()) else emptyMap()
-            val kind = F1ExtrasParse.scoringKind(o?.name, s.name)
-            val points = if (kind != null && s.state == "post") {
-                val sprint = kind == "sprint"
-                runCatching { officialPoints(s.date, sprint) }.getOrNull()?.takeIf { it.isNotEmpty() }
-                    ?: F1ExtrasParse.tablePoints(s.results, sprint)
-            } else null
-            out[s.id] = SessionExtra(tyres, points)
+            val o = matched[s]
+            val tyres = o?.let { tyresBySession[it.key] } ?: emptyMap()
+            out[s.id] = SessionExtra(tyres, pointsJobs.getValue(s.id).await())
         }
-        return out
+        out
+    }
+
+    /** Official points for a finished race/sprint, or table points until Jolpica posts them. */
+    private suspend fun pointsFor(s: F1Session, year: Int): Map<String, String>? {
+        val kind = F1ExtrasParse.scoringKind(null, s.name) ?: return null
+        if (s.state != "post") return null
+        val sprint = kind == "sprint"
+        return runCatching { officialPoints(s.date, sprint, year) }.getOrNull()?.takeIf { it.isNotEmpty() }
+            ?: F1ExtrasParse.tablePoints(s.results, sprint)
     }
 
     private suspend fun openF1Sessions(year: Int): List<F1ExtrasParse.OSession> {
-        val now = System.currentTimeMillis()
-        if (year == sessionsYear && now - sessionsAt < 6 * 3600_000L && sessionsCache.isNotEmpty()) return sessionsCache
-        val list = F1ExtrasParse.sessions(getArray("$OPENF1/sessions?year=$year"))
-        sessionsYear = year; sessionsAt = now; sessionsCache = list
+        cachedFresh("sessions-$year", 12 * 3600_000L)?.let { return F1ExtrasParse.sessions(JSONArray(it)) }
+        val arr = getArray("$OPENF1/sessions?year=$year")
+        val list = F1ExtrasParse.sessions(arr)
+        if (list.isNotEmpty()) saveFresh("sessions-$year", arr.toString())
         return list
     }
 
-    private suspend fun tyres(o: F1ExtrasParse.OSession, finished: Boolean): Map<String, List<Tyre>> {
-        tyreCache[o.key]?.let { return it }
-        val numbers = driversCache[o.meetingKey] ?: run {
-            delay(350) // OpenF1 free tier allows about 3 requests per second
-            F1ExtrasParse.driverNumbers(getArray("$OPENF1/drivers?meeting_key=${o.meetingKey}"))
-                .also { if (it.isNotEmpty()) driversCache[o.meetingKey] = it }
-        }
-        delay(350)
-        val t = F1ExtrasParse.tyres(getArray("$OPENF1/stints?session_key=${o.key}"), numbers)
-        if (finished && t.isNotEmpty()) tyreCache[o.key] = t
-        return t
-    }
-
-    private suspend fun officialPoints(espnDate: String, sprint: Boolean): Map<String, String> {
+    private suspend fun officialPoints(espnDate: String, sprint: Boolean, year: Int): Map<String, String> {
         val day = F1ExtrasParse.utcDate(espnDate) ?: return emptyMap()
-        val year = day.take(4)
-        val now = System.currentTimeMillis()
-        val sched = scheduleCache?.takeIf { now - it.first < 12 * 3600_000L }?.second
-            ?: F1ExtrasParse.schedule(Net.getJson("$JOLPICA/$year/races.json?limit=40")).also { scheduleCache = now to it }
+        val sched = cachedFresh("schedule-$year", 12 * 3600_000L)?.let { F1ExtrasParse.schedule(JSONObject(it)) }
+            ?: run {
+                val root = Net.getJson("$JOLPICA/$year/races.json?limit=40")
+                F1ExtrasParse.schedule(root).also { if (it.isNotEmpty()) saveFresh("schedule-$year", root.toString()) }
+            }
         // Within a day: Jolpica dates are local race days, which can differ from UTC (e.g. Las Vegas).
         val target = java.time.LocalDate.parse(day)
         val round = sched.firstOrNull { r ->
             val d = (if (sprint) r.sprintDate else r.raceDate)?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
             d != null && Math.abs(d.toEpochDay() - target.toEpochDay()) <= 1
         }?.round ?: return emptyMap()
-        val cacheKey = "$year-$round-$sprint"
-        pointsCache[cacheKey]?.let { return it }
+        val cacheKey = "pts-$year-$round-$sprint"
+        cached(cacheKey)?.let { return F1ExtrasParse.decodePoints(it) }
         val p = F1ExtrasParse.points(Net.getJson("$JOLPICA/$year/$round/${if (sprint) "sprint" else "results"}.json"), sprint)
-        if (p.isNotEmpty()) pointsCache[cacheKey] = p
+        if (p.isNotEmpty()) save(cacheKey, F1ExtrasParse.encodePoints(p), disk = true)
         return p
     }
 
