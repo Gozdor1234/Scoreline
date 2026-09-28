@@ -23,6 +23,21 @@
 - **Your teams first.** Favorites float to the top, the "My teams" filter hides everything else, and notifications cover kickoffs, scores, and finals.
 - **Built your way.** Themes include light, dark, AMOLED black, and your phone's own colors, plus a full custom palette. You can drag the tabs and bottom bar into whatever order you like.
 
+## 📸 Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/scores.jpg" width="250" alt="NFL scores"><br><sub><b>Live scores</b></sub></td>
+    <td align="center"><img src="docs/screenshots/scores-odds.jpg" width="250" alt="Two-column scores with betting lines"><br><sub><b>Betting lines, two-column view</b></sub></td>
+    <td align="center"><img src="docs/screenshots/nfl-standings.jpg" width="250" alt="NFL standings"><br><sub><b>NFL standings</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/f1-weekend.jpg" width="250" alt="F1 race weekend with track map and tyres"><br><sub><b>F1 weekend: track, tyres, points</b></sub></td>
+    <td align="center"><img src="docs/screenshots/f1-teams.jpg" width="250" alt="F1 constructor standings"><br><sub><b>F1 team standings</b></sub></td>
+    <td align="center"><img src="docs/screenshots/golf.jpg" width="250" alt="Golf leaderboard"><br><sub><b>Golf leaderboard</b></sub></td>
+  </tr>
+</table>
+
 ## 🏟️ What's inside
 
 | | |
