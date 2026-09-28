@@ -68,6 +68,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.request.ImageRequest
+import coil.compose.AsyncImage
 
 fun shiftWeek(w: WeekInfo, delta: Int, league: League): WeekInfo {
     var type = w.seasonType
@@ -129,7 +131,17 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
     Column(modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = league.ordinal) {
             League.entries.forEach { l ->
-                Tab(selected = l == league, onClick = { league = l }, text = { Text(l.label) })
+                Tab(
+                    selected = l == league,
+                    onClick = { league = l },
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            LeagueLogo(l)
+                            Spacer(Modifier.width(8.dp))
+                            Text(l.label)
+                        }
+                    },
+                )
             }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -420,4 +432,24 @@ private fun TeamLine(t: TeamSide, g: Game, hasBall: Boolean) {
             )
         }
     }
+}
+
+/**
+ * League mark for the Scores tabs. NFL shield from ESPN; NCAA logo from Wikimedia Commons,
+ * which asks apps to send a descriptive User-Agent.
+ */
+@Composable
+private fun LeagueLogo(l: League) {
+    val ctx = LocalContext.current
+    val url = when (l) {
+        League.NFL -> "https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png"
+        League.CFB -> "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/NCAA_logo.svg/120px-NCAA_logo.svg.png"
+    }
+    val request = remember(url) {
+        ImageRequest.Builder(ctx)
+            .data(url)
+            .setHeader("User-Agent", "Scoreology/1.0 (Android app; https://github.com/Gozdor1234/Scoreology)")
+            .build()
+    }
+    AsyncImage(model = request, contentDescription = null, modifier = Modifier.size(22.dp))
 }
