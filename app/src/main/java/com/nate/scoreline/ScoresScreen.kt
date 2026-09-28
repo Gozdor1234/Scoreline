@@ -360,7 +360,8 @@ private fun CollegeViewRow(fav: Favorites, view: String) {
 }
 
 @Composable
-fun GameCard(g: Game, favorite: Boolean, odds: GameOdds? = null, onClick: () -> Unit) {
+/** showDate: add the local game date after "Final" (used on team schedules). */
+fun GameCard(g: Game, favorite: Boolean, odds: GameOdds? = null, showDate: Boolean = false, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         colors = if (favorite) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
@@ -385,7 +386,13 @@ fun GameCard(g: Game, favorite: Boolean, odds: GameOdds? = null, onClick: () -> 
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    else -> Text(g.detail, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    else -> {
+                        Text(g.detail, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        val day = if (showDate) gameDay(g.date) else ""
+                        if (day.isNotEmpty()) {
+                            Text("  •  $day", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
             }
             if (odds != null && g.state == "pre") OddsTable(odds, g.away.abbr, g.home.abbr, Modifier.padding(top = 8.dp))
@@ -453,3 +460,9 @@ private fun LeagueLogo(l: League) {
     }
     AsyncImage(model = request, contentDescription = null, modifier = Modifier.size(22.dp))
 }
+
+/** "Sun, Sep 13" in local time, or "" if the date can't be read. */
+fun gameDay(iso: String): String = runCatching {
+    java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault())
+        .format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d"))
+}.getOrDefault("")

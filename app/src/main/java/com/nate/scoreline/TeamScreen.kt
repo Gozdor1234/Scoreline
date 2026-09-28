@@ -291,7 +291,8 @@ private fun TeamScores(schedP: Polled<List<Game>>, league: League, open: (Route)
     LoadableContent(schedP, emptyText = "No games scheduled.") { games ->
         val live = games.filter { it.state == "in" }
         val upcoming = games.filter { it.state == "pre" }.sortedBy { it.date }
-        val results = games.filter { it.state == "post" }.sortedByDescending { it.date }
+        // Oldest game first, most recent at the bottom.
+        val results = games.filter { it.state == "post" }.sortedBy { it.date }
         if (games.isEmpty()) {
             Message("No games on the schedule yet.")
             return@LoadableContent
@@ -308,7 +309,7 @@ private fun TeamScores(schedP: Polled<List<Game>>, league: League, open: (Route)
                             modifier = Modifier.padding(start = 4.dp, top = 4.dp),
                         )
                     }
-                    items(list, key = { "$label-${it.id}" }) { g -> GameCard(g, false) { open(Route.GameDetail(league, g.id)) } }
+                    items(list, key = { "$label-${it.id}" }) { g -> GameCard(g, false, showDate = true) { open(Route.GameDetail(league, g.id)) } }
                 }
             }
         }
