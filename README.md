@@ -27,6 +27,9 @@
 
 <table>
   <tr>
+    <td align="center" colspan="3"><img src="docs/screenshots/app-icon.png" width="120" alt="Scoreology app icon"><br><sub><b>App icon</b></sub></td>
+  </tr>
+  <tr>
     <td align="center"><img src="docs/screenshots/scores.jpg" width="250" alt="NFL scores"><br><sub><b>Live scores</b></sub></td>
     <td align="center"><img src="docs/screenshots/scores-odds.jpg" width="250" alt="Two-column scores with betting lines"><br><sub><b>Betting lines, two-column view</b></sub></td>
     <td align="center"><img src="docs/screenshots/nfl-standings.jpg" width="250" alt="NFL standings"><br><sub><b>NFL standings</b></sub></td>
