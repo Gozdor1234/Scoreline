@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -476,6 +477,8 @@ fun F1RaceScreen(round: String, name: String, hasSprint: Boolean, onBack: () -> 
     val empty = F1Race(name, round, "", "", emptyList())
     val race = rememberPolled<F1Race>("f1race-$round", { IDLE_MS * 6 }) { F1.raceResults(round) ?: empty }
     val sprint = if (hasSprint) rememberPolled<F1Race>("f1sprint-$round", { IDLE_MS * 6 }) { F1.sprintResults(round) ?: empty } else null
+    val quali = rememberPolled<List<F1QualiRow>>("f1quali-$round", { IDLE_MS * 6 }) { F1.qualifying(round) }
+    val tabs = if (hasSprint) listOf("Race", "Sprint", "Qualifying") else listOf("Race", "Qualifying")
     Scaffold(
         topBar = {
             TopAppBar(
@@ -486,12 +489,14 @@ fun F1RaceScreen(round: String, name: String, hasSprint: Boolean, onBack: () -> 
         },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
-            if (sprint != null) {
-                TabRow(selectedTabIndex = tab) {
-                    listOf("Race", "Sprint").forEachIndexed { i, s -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(s) }) }
-                }
+            TabRow(selectedTabIndex = tab.coerceIn(0, tabs.lastIndex)) {
+                tabs.forEachIndexed { i, s -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(s) }) }
             }
-            val shown = if (tab == 1 && sprint != null) sprint else race
+            if (tabs.getOrNull(tab) == "Qualifying") {
+                QualifyingList(quali, fav)
+                return@Column
+            }
+            val shown = if (tabs.getOrNull(tab) == "Sprint" && sprint != null) sprint else race
             LoadableContent(shown) { r ->
                 if (r.results.isEmpty()) {
                     Message("Results aren't posted yet.")
@@ -508,6 +513,60 @@ fun F1RaceScreen(round: String, name: String, hasSprint: Boolean, onBack: () -> 
                     item { SourceNote() }
                 }
             }
+        }
+    }
+}
+
+/** Qualifying classification: best stage reached and that lap time; Q1/Q2/Q3 times underneath. */
+@Composable
+private fun QualifyingList(polled: Polled<List<F1QualiRow>>, fav: Favorites) {
+    LoadableContent(polled) { rows ->
+        if (rows.isEmpty()) {
+            Message("Qualifying results aren't posted yet.")
+            return@LoadableContent
+        }
+        LazyColumn {
+            item {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    val st = MaterialTheme.typography.labelSmall
+                    val c = MaterialTheme.colorScheme.onSurfaceVariant
+                    Text("Pos", Modifier.width(36.dp), style = st, color = c, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.width(46.dp))
+                    Text("Driver", Modifier.weight(1f), style = st, color = c)
+                    Text("Best", style = st, color = c)
+                }
+            }
+            items(rows) { r ->
+                val (stage, time) = r.best
+                Column {
+                    Row(
+                        Modifier.fillMaxWidth().background(favTint(fav.isFavDriver(r.driver))).padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(r.pos, Modifier.width(36.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                        TeamBadge(r.team)
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(r.driver, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                listOf("Q1" to r.q1, "Q2" to r.q2, "Q3" to r.q3).filter { it.second.isNotBlank() }
+                                    .joinToString("   ") { "${it.first} ${it.second}" }.ifEmpty { r.team },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(time, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                            if (stage.isNotEmpty()) {
+                                Text(stage, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                    HorizontalDivider()
+                }
+            }
+            item { SourceNote() }
         }
     }
 }

@@ -52,7 +52,7 @@ fun StandingsScreen(modifier: Modifier) {
 }
 
 @Composable
-private fun favTint(isFav: Boolean): Color =
+fun favTint(isFav: Boolean): Color =
     if (isFav) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
 
 @Composable

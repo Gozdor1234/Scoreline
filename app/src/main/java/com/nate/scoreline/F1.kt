@@ -46,6 +46,18 @@ data class F1Round(
     val winnerTeam: String? = null,
 )
 
+/** One qualifying classification line. q1..q3 are lap times ("1:29.123"), blank if not set. */
+data class F1QualiRow(val pos: String, val driver: String, val team: String, val q1: String, val q2: String, val q3: String) {
+    /** Best stage reached, with its time: ("Q3", "1:29.123"). */
+    val best: Pair<String, String>
+        get() = when {
+            q3.isNotBlank() -> "Q3" to q3
+            q2.isNotBlank() -> "Q2" to q2
+            q1.isNotBlank() -> "Q1" to q1
+            else -> "" to "No time"
+        }
+}
+
 data class F1DriverStanding(val pos: String, val name: String, val code: String, val team: String, val points: String, val wins: String)
 data class F1TeamStanding(val pos: String, val team: String, val points: String, val wins: String)
 
@@ -69,6 +81,7 @@ object F1 {
     }
     suspend fun raceResults(round: String): F1Race? = parseLastRace(Net.getJson("$JOLPICA/$round/results.json"))
     suspend fun sprintResults(round: String): F1Race? = parseLastRace(Net.getJson("$JOLPICA/$round/sprint.json"), "SprintResults")
+    suspend fun qualifying(round: String): List<F1QualiRow> = parseQualifying(Net.getJson("$JOLPICA/$round/qualifying.json"))
     suspend fun driverStandings(): List<F1DriverStanding> = parseDriverStandings(Net.getJson("$JOLPICA/driverStandings.json"))
     suspend fun teamStandings(): List<F1TeamStanding> = parseTeamStandings(Net.getJson("$JOLPICA/constructorStandings.json"))
 
@@ -167,6 +180,17 @@ object F1 {
             res.obj("Constructor")?.str("name") ?: "",
         )
     }.toMap()
+
+    fun parseQualifying(root: JSONObject): List<F1QualiRow> =
+        raceTable(root).firstOrNull()?.arr("QualifyingResults").objects().map { r ->
+            val d = r.obj("Driver")
+            F1QualiRow(
+                pos = r.str("position"),
+                driver = "${d?.str("givenName") ?: ""} ${d?.str("familyName") ?: ""}".trim(),
+                team = r.obj("Constructor")?.str("name") ?: "",
+                q1 = r.str("Q1"), q2 = r.str("Q2"), q3 = r.str("Q3"),
+            )
+        }
 
     fun parseDriverStandings(root: JSONObject): List<F1DriverStanding> =
         standingsList(root)?.arr("DriverStandings").objects().map { s ->
