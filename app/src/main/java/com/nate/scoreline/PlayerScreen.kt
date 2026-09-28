@@ -171,11 +171,11 @@ fun PlayerScreen(league: League, athleteId: String, onBack: () -> Unit, open: (R
                                         title = t.title,
                                         firstHeader = "SEASON",
                                         labels = t.labels,
-                                        rows = t.rows,
+                                        rows = t.rows.asReversed(), // most recent season on top
                                         totalsLabel = "Career",
                                         totals = t.totals,
                                         firstWidth = 84.dp,
-                                        rowIcons = t.rowLogos,
+                                        rowIcons = t.rowLogos.asReversed(),
                                     )
                                 }
                             }
