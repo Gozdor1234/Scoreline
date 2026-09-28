@@ -43,6 +43,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
@@ -53,15 +65,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
 
 @Composable
-fun F1Screen(modifier: Modifier) {
+fun F1Screen(modifier: Modifier, open: (Route) -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     Column(modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = tab) {
-            listOf("This weekend", "Last race").forEachIndexed { i, s ->
+            listOf("This weekend", "Season", "Last race").forEachIndexed { i, s ->
                 Tab(selected = tab == i, onClick = { tab = i }, text = { Text(s) })
             }
         }
-        if (tab == 0) WeekendView() else LastRaceView()
+        when (tab) {
+            0 -> WeekendView()
+            1 -> SeasonView(open)
+            else -> LastRaceView()
+        }
     }
 }
 
@@ -194,18 +210,7 @@ private fun LastRaceView() {
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            item { SimpleRow("Pos", "Driver", "", "Grid", "Pts", header = true) }
-            items(race.results) { r ->
-                SimpleRow(
-                    pos = r.pos,
-                    main = r.driver + if (r.fastestLap) "  (fastest lap)" else "",
-                    sub = "${r.team}  •  ${r.timeOrStatus}",
-                    a = r.grid,
-                    b = r.points,
-                    highlight = fav.isFavDriver(r.driver),
-                    leading = { TeamBadge(r.team) },
-                )
-            }
+            resultItems(race, fav)
             item { SourceNote() }
         }
     }
@@ -291,18 +296,24 @@ private fun CircuitCard(w: F1Weekend) {
     }
 }
 
-/** Compound letters in fitting order, each on a dark chip so white (hard) reads on light themes too. */
+/**
+ * Compound letters in fitting order. On light backgrounds, white (hard) and yellow (medium)
+ * get a faint dark halo so they stay readable; no box behind them.
+ */
 @Composable
 private fun TyreStrip(tyres: List<Tyre>) {
+    val light = MaterialTheme.colorScheme.surface.luminance() > 0.5f
     Row(Modifier.padding(start = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         tyres.forEach { t ->
-            Box(
-                Modifier.padding(start = 3.dp)
-                    .background(Color(0xFF1F2126), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 4.dp, vertical = 1.dp),
-            ) {
-                Text(t.label, color = tyreColor(t), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            }
+            val halo = light && (t == Tyre.HARD || t == Tyre.MEDIUM)
+            Text(
+                t.label,
+                modifier = Modifier.padding(start = 6.dp),
+                color = tyreColor(t),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                style = if (halo) TextStyle(shadow = Shadow(Color(0xAA000000), Offset.Zero, blurRadius = 4f)) else TextStyle.Default,
+            )
         }
     }
 }
@@ -313,4 +324,154 @@ private fun tyreColor(t: Tyre): Color = when (t) {
     Tyre.MEDIUM -> Color(0xFFFFD60A)
     Tyre.INTER -> Color(0xFF34C759)
     Tyre.WET -> Color(0xFF3A8DFF)
+}
+
+/** Result rows shared by Last race and the season race screen. */
+fun LazyListScope.resultItems(race: F1Race, fav: Favorites) {
+    item { SimpleRow("Pos", "Driver", "", "Grid", "Pts", header = true) }
+    items(race.results) { r ->
+        SimpleRow(
+            pos = r.pos,
+            main = r.driver + if (r.fastestLap) "  (fastest lap)" else "",
+            sub = "${r.team}  •  ${r.timeOrStatus}",
+            a = r.grid,
+            b = r.points,
+            highlight = fav.isFavDriver(r.driver),
+            leading = { TeamBadge(r.team) },
+        )
+    }
+}
+
+/** Every round this season: results for completed races (tap for the full classification), dates for upcoming ones. */
+@Composable
+private fun SeasonView(open: (Route) -> Unit) {
+    val polled = rememberPolled<List<F1Round>>("f1season", { IDLE_MS * 2 }) { F1.season() }
+    var upcoming by rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = !upcoming, onClick = { upcoming = false }, label = { Text("Results") })
+            FilterChip(selected = upcoming, onClick = { upcoming = true }, label = { Text("Upcoming") })
+        }
+        LoadableContent(polled) { rounds ->
+            val now = java.time.Instant.now()
+            fun started(r: F1Round) = r.winner != null ||
+                (F1ExtrasParse.instant(r.dateIso.let { if ('T' in it) it else it + "T23:59:00Z" })?.isBefore(now) == true)
+            val list = if (upcoming) rounds.filterNot(::started) else rounds.filter(::started).reversed()
+            if (list.isEmpty()) {
+                Message(if (upcoming) "No races left this season." else "No completed races yet this season.")
+                return@LoadableContent
+            }
+            LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
+                items(list, key = { it.round }) { r ->
+                    RoundCard(r, next = upcoming && r == list.first()) {
+                        if (!upcoming) open(Route.F1Race(r.round, r.name, r.hasSprint))
+                    }
+                }
+                item { SourceNote() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoundCard(r: F1Round, next: Boolean, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp),
+        colors = if (next) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer) else CardDefaults.cardColors(),
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.width(44.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("R${r.round}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                if (r.hasSprint) Text("Sprint", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(r.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (next) {
+                        Spacer(Modifier.width(8.dp))
+                        Text("NEXT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                Text(
+                    listOf(r.circuit, r.location).filter { it.isNotBlank() }.joinToString("  •  "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    roundDate(r.dateIso),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (r.winner != null) {
+                    Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TeamBadge(r.winnerTeam ?: "", 20.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("🏆 ${r.winner}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    }
+                } else if ('T' in r.dateIso && F1ExtrasParse.instant(r.dateIso)?.isBefore(java.time.Instant.now()) == true) {
+                    Text("Results pending", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp))
+                }
+            }
+        }
+    }
+}
+
+/** "Sun, Sep 26 • 7:00 AM" in local time, or just the date when Jolpica has no start time. */
+private fun roundDate(iso: String): String = runCatching {
+    if ('T' in iso) {
+        java.time.OffsetDateTime.parse(iso).atZoneSameInstant(java.time.ZoneId.systemDefault())
+            .format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d  •  h:mm a"))
+    } else {
+        java.time.LocalDate.parse(iso).format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d"))
+    }
+}.getOrDefault(iso)
+
+/** Full classification for one round, with a Sprint tab on sprint weekends. */
+@Composable
+fun F1RaceScreen(round: String, name: String, hasSprint: Boolean, onBack: () -> Unit) {
+    val fav = Favorites.get(LocalContext.current)
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    // Missing results load as an empty race, so the screen shows a message instead of spinning.
+    val empty = F1Race(name, round, "", "", emptyList())
+    val race = rememberPolled<F1Race>("f1race-$round", { IDLE_MS * 6 }) { F1.raceResults(round) ?: empty }
+    val sprint = if (hasSprint) rememberPolled<F1Race>("f1sprint-$round", { IDLE_MS * 6 }) { F1.sprintResults(round) ?: empty } else null
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                colors = scorelineTopBarColors(),
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
+            )
+        },
+    ) { pad ->
+        Column(Modifier.padding(pad).fillMaxSize()) {
+            if (sprint != null) {
+                TabRow(selectedTabIndex = tab) {
+                    listOf("Race", "Sprint").forEachIndexed { i, s -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(s) }) }
+                }
+            }
+            val shown = if (tab == 1 && sprint != null) sprint else race
+            LoadableContent(shown) { r ->
+                if (r.results.isEmpty()) {
+                    Message("Results aren't posted yet.")
+                    return@LoadableContent
+                }
+                LazyColumn {
+                    item {
+                        Column(Modifier.padding(16.dp)) {
+                            Text("Round ${r.round}  •  ${r.circuit}  •  ${r.date}",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    resultItems(r, fav)
+                    item { SourceNote() }
+                }
+            }
+        }
+    }
 }

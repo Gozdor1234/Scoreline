@@ -69,6 +69,7 @@ sealed interface Route {
     data class GolfEvent(val eventId: String) : Route
     data class Golfer(val athleteId: String) : Route
     data object DriverPicker : Route
+    data class F1Race(val round: String, val name: String, val hasSprint: Boolean) : Route
 }
 
 
@@ -100,6 +101,7 @@ fun App(pendingRoute: MutableState<Route?>) {
         is Route.Golfer -> GolferScreen(top.athleteId, onBack = back, open = open)
         is Route.TeamPicker -> TeamPickerScreen(top.league, onBack = back)
         Route.DriverPicker -> DriverPickerScreen(onBack = back)
+        is Route.F1Race -> F1RaceScreen(top.round, top.name, top.hasSprint, onBack = back)
         null -> holder.SaveableStateProvider("tabs") {
           Scaffold(
             bottomBar = {
@@ -116,7 +118,7 @@ fun App(pendingRoute: MutableState<Route?>) {
             val m = Modifier.padding(pad)
             when (tab) {
                 0 -> ScoresScreen(m, open)
-                1 -> F1Screen(m)
+                1 -> F1Screen(m, open)
                 2 -> GolfScreen(m, open)
                 3 -> StandingsScreen(m)
                 else -> SettingsScreen(m, open)

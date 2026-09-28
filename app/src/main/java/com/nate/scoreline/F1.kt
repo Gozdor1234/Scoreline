@@ -2,6 +2,8 @@ package com.nate.scoreline
 
 import org.json.JSONObject
 import java.text.Normalizer
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 data class F1Entry(val pos: Int, val driver: String, val flag: String, val winner: Boolean)
 
@@ -32,6 +34,18 @@ data class F1ResultRow(
 
 data class F1Race(val name: String, val round: String, val circuit: String, val date: String, val results: List<F1ResultRow>)
 
+/** One round of the season schedule. dateIso is UTC start ("2026-09-26T11:00:00Z") or just the date. */
+data class F1Round(
+    val round: String,
+    val name: String,
+    val circuit: String,
+    val location: String,
+    val dateIso: String,
+    val hasSprint: Boolean,
+    val winner: String? = null,
+    val winnerTeam: String? = null,
+)
+
 data class F1DriverStanding(val pos: String, val name: String, val code: String, val team: String, val points: String, val wins: String)
 data class F1TeamStanding(val pos: String, val team: String, val points: String, val wins: String)
 
@@ -46,6 +60,15 @@ object F1 {
 
     suspend fun weekends(): List<F1Weekend> = parseWeekends(Net.getJson(ESPN))
     suspend fun lastRace(): F1Race? = parseLastRace(Net.getJson("$JOLPICA/last/results.json"))
+    /** Full season schedule, with winners filled in for completed rounds. */
+    suspend fun season(): List<F1Round> = coroutineScope {
+        val sched = async { parseSchedule(Net.getJson("$JOLPICA/races.json?limit=40")) }
+        val winners = async { runCatching { parseWinners(Net.getJson("$JOLPICA/results/1.json?limit=40")) }.getOrDefault(emptyMap()) }
+        val w = winners.await()
+        sched.await().map { r -> w[r.round]?.let { (d, t) -> r.copy(winner = d, winnerTeam = t) } ?: r }
+    }
+    suspend fun raceResults(round: String): F1Race? = parseLastRace(Net.getJson("$JOLPICA/$round/results.json"))
+    suspend fun sprintResults(round: String): F1Race? = parseLastRace(Net.getJson("$JOLPICA/$round/sprint.json"), "SprintResults")
     suspend fun driverStandings(): List<F1DriverStanding> = parseDriverStandings(Net.getJson("$JOLPICA/driverStandings.json"))
     suspend fun teamStandings(): List<F1TeamStanding> = parseTeamStandings(Net.getJson("$JOLPICA/constructorStandings.json"))
 
@@ -95,9 +118,9 @@ object F1 {
     private fun standingsList(root: JSONObject) =
         root.obj("MRData")?.obj("StandingsTable")?.arr("StandingsLists").objects()?.firstOrNull()
 
-    fun parseLastRace(root: JSONObject): F1Race? {
+    fun parseLastRace(root: JSONObject, key: String = "Results"): F1Race? {
         val race = raceTable(root).firstOrNull() ?: return null
-        val rows = race.arr("Results").objects().map { r ->
+        val rows = race.arr(key).objects().map { r ->
             val d = r.obj("Driver")
             val time = r.obj("Time")?.str("time") ?: ""
             F1ResultRow(
@@ -120,6 +143,30 @@ object F1 {
             results = rows,
         )
     }
+
+    fun parseSchedule(root: JSONObject): List<F1Round> = raceTable(root).map { r ->
+        val c = r.obj("Circuit")
+        val loc = c?.obj("Location")
+        val time = r.str("time")
+        F1Round(
+            round = r.str("round"),
+            name = r.str("raceName"),
+            circuit = c?.str("circuitName") ?: "",
+            location = listOf(loc?.str("locality") ?: "", loc?.str("country") ?: "").filter { it.isNotBlank() }.joinToString(", "),
+            dateIso = if (time.isNotEmpty()) "${r.str("date")}T$time" else r.str("date"),
+            hasSprint = r.obj("Sprint") != null,
+        )
+    }
+
+    /** round -> (winner name, team) from a results/1 query. */
+    fun parseWinners(root: JSONObject): Map<String, Pair<String, String>> = raceTable(root).mapNotNull { r ->
+        val res = r.arr("Results").objects().firstOrNull() ?: return@mapNotNull null
+        val d = res.obj("Driver")
+        r.str("round") to Pair(
+            "${d?.str("givenName") ?: ""} ${d?.str("familyName") ?: ""}".trim(),
+            res.obj("Constructor")?.str("name") ?: "",
+        )
+    }.toMap()
 
     fun parseDriverStandings(root: JSONObject): List<F1DriverStanding> =
         standingsList(root)?.arr("DriverStandings").objects().map { s ->
