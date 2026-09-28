@@ -13,7 +13,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.nate.scoreline"
+        applicationId = "com.chickenmybobbers.scoreline"
         minSdk = 26
         targetSdk = 34
         versionCode = runNumber
