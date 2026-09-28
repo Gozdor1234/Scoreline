@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history and tags, for the release notes
 
       - uses: actions/setup-java@v4
         with:
@@ -55,8 +57,26 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          N: ${{ github.run_number }}
         run: |
-          gh release create "build-${{ github.run_number }}" "Scoreology-${{ github.run_number }}.apk" \
-            --title "Scoreology build ${{ github.run_number }}" \
-            --notes "Tap Scoreology-${{ github.run_number }}.apk below to download, then open it to install." \
+          # Release notes: one bullet per commit since the previous build, skipping
+          # commits that only touched the README, docs, or release notes.
+          PREV=$(git tag --list 'build-*' --sort=-v:refname | head -1)
+          RANGE=${PREV:+$PREV..}HEAD
+          : > changes.md
+          for c in $(git rev-list --reverse "$RANGE"); do
+            if git diff-tree --no-commit-id --name-only -r "$c" | grep -qvE '^(README\.md|docs/|\.github/release-notes\.json)'; then
+              echo "- $(git log -1 --format=%s "$c")" >> changes.md
+            fi
+          done
+          [ -s changes.md ] || echo "- Rebuild with no app changes." > changes.md
+          {
+            echo "## What's new"
+            cat changes.md
+            echo
+            echo "Tap **Scoreology-$N.apk** below to download, then open it to install."
+          } > notes.md
+          gh release create "build-$N" "Scoreology-$N.apk" \
+            --title "Scoreology build $N" \
+            --notes-file notes.md \
             --latest

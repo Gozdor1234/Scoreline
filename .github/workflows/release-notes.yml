@@ -1,0 +1,33 @@
+name: Add release notes to past builds
+
+# Run once from the Actions tab (Run workflow). It adds a "What's new" section to each
+# existing build-N release using .github/release-notes.json. Releases that already
+# have one are left alone, so running it again is harmless.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update release descriptions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for n in $(jq -r 'keys[]' .github/release-notes.json | sort -n); do
+            tag="build-$n"
+            body=$(gh release view "$tag" --json body -q .body 2>/dev/null) || { echo "skip $tag (no release)"; continue; }
+            case "$body" in *"## What's new"*) echo "skip $tag (already has notes)"; continue;; esac
+            {
+              echo "## What's new"
+              jq -r --arg n "$n" '.[$n][] | "- " + .' .github/release-notes.json
+              echo
+              echo "$body"
+            } > notes.md
+            gh release edit "$tag" --notes-file notes.md
+            echo "updated $tag"
+          done

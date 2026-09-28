@@ -1,0 +1,103 @@
+{
+  "4": [
+    "First release of the app (then called Scoreline): live NFL and college football scores, game details with team and player stats, F1 weekend and results, standings, favorites, and alerts.",
+    "APK now published here as a GitHub Release for easy phone downloads."
+  ],
+  "5": [
+    "Appearance settings: match your phone's colors, plus System, Light, Dark, and AMOLED themes.",
+    "New Play-by-play tab on the game screen."
+  ],
+  "6": [
+    "Hold and drag to reorder the game tabs (Team stats, Players, Scoring, Play-by-play).",
+    "College scores: view Top 25, all FBS, or a single conference.",
+    "Pin a favorite conference or division to the top of Standings.",
+    "Dark theme is now gray-blue instead of black.",
+    "F1 standings show team badges."
+  ],
+  "7": [
+    "Custom color palette: pick your own colors for the background, highlights, text, and more, with a full color picker and brightness control."
+  ],
+  "8": [
+    "A small football now shows which team has the ball, replacing the red dot."
+  ],
+  "9": [
+    "Redrew the football icon with realistic proportions."
+  ],
+  "10": [
+    "Made the football icon slightly smaller."
+  ],
+  "11": [
+    "Home-screen widget: see scores without opening the app, switch leagues, change weeks, and tap a game to open it."
+  ],
+  "12": [
+    "The app is now called Scoreology, with a new stadium icon."
+  ],
+  "13": [
+    "Tap a team to see its schedule, stats, and roster.",
+    "Tap a player to see their overview, stats, and bio.",
+    "Game screen header fades in each team's colors."
+  ],
+  "14": [
+    "Player stats can be viewed by season or game by game, with a season picker."
+  ],
+  "15": [
+    "Pinch the Scores list to make game cards bigger or smaller."
+  ],
+  "16": [
+    "New Golf tab: live PGA TOUR leaderboard, schedule, tournament pages, and golfer pages.",
+    "New bottom bar icons for F1 (car) and Golf (pin and flag).",
+    "Fully zoomed out, the Scores list switches to two columns."
+  ],
+  "17": [
+    "Golf: see the standings after each round.",
+    "Golf: hole-by-hole scorecard on the tournament Info tab."
+  ],
+  "18": [
+    "Golf: tournament Info now has the leaderboard above the hole-by-hole scorecard, with a round filter."
+  ],
+  "19": [
+    "New app icon: a soccer pitch."
+  ],
+  "20": [
+    "F1: sessions now listed newest first (race on top).",
+    "F1: circuit card with a track map and track facts."
+  ],
+  "21": [
+    "Hold and drag the bottom bar buttons to rearrange them. Your order is saved."
+  ],
+  "22": [
+    "Betting lines (moneyline, spread, over/under) on upcoming NFL and college games. FanDuel if you add a free Odds API key in Settings, otherwise DraftKings."
+  ],
+  "23": [
+    "Scores: pull down to refresh. The refresh button is gone."
+  ],
+  "24": [
+    "Game screen: newest scoring plays are listed first."
+  ],
+  "25": [
+    "No app changes (GitHub page update only)."
+  ],
+  "26": [
+    "Game screen: the quarter-by-quarter box score now stretches edge to edge."
+  ],
+  "27": [
+    "College scores now have their own conference pin, separate from the one on Standings."
+  ],
+  "28": [
+    "F1 weekend: each driver's tyres used, in order, and the points they earned."
+  ],
+  "29": [
+    "F1: new Season tab with every completed race (tap for full results) and every upcoming race.",
+    "Tyre letters no longer have a black box behind them."
+  ],
+  "30": [
+    "F1: official team logos replace the colored circles."
+  ],
+  "31": [
+    "F1: tyres now show as small tyre icons, centered between the driver name and points.",
+    "Points earned now show with a plus sign (for example +25)."
+  ],
+  "32": [
+    "F1: past races now have a Qualifying tab next to Race and Sprint."
+  ]
+}
