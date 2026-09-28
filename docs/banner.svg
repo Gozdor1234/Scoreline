@@ -8,6 +8,10 @@
       <stop offset="0" stop-color="#3FD17A"/>
       <stop offset="1" stop-color="#4FA3FF"/>
     </linearGradient>
+    <linearGradient id="iconbg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#03A6E7"/>
+      <stop offset="1" stop-color="#0A558E"/>
+    </linearGradient>
   </defs>
   <rect width="1200" height="360" rx="28" fill="url(#bg)"/>
   <g stroke="#FFFFFF" stroke-opacity="0.05" stroke-width="2">
@@ -16,9 +20,9 @@
   </g>
   <!-- App icon: pitch on blue -->
   <g transform="translate(90,80)">
-    <rect width="200" height="200" rx="52" fill="#0C5C8D"/>
+    <rect width="200" height="200" rx="52" fill="url(#iconbg)"/>
     <g transform="translate(-50,-50) scale(2.7778)">
-      <path fill="#2F7027" d="M32,35H76A4,4 0 0,1 80,39V69A4,4 0 0,1 76,73H32A4,4 0 0,1 28,69V39A4,4 0 0,1 32,35Z"/>
+      <path fill="#367427" d="M32,35H76A4,4 0 0,1 80,39V69A4,4 0 0,1 76,73H32A4,4 0 0,1 28,69V39A4,4 0 0,1 32,35Z"/>
       <path fill="none" stroke="#FFFFFF" stroke-width="1.1" d="M54,35V73 M43.7,54A10.3,10.3 0 1,0 64.3,54A10.3,10.3 0 1,0 43.7,54Z M28,44.25H35.5A2,2 0 0,1 37.5,46.25V61.75A2,2 0 0,1 35.5,63.75H28 M80,44.25H72.5A2,2 0 0,0 70.5,46.25V61.75A2,2 0 0,0 72.5,63.75H80"/>
       <circle cx="54" cy="54" r="1.8" fill="#FFFFFF"/>
     </g>

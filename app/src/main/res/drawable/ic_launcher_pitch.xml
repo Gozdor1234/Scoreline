@@ -3,7 +3,7 @@
      Sized so the pitch corners stay inside the 66 dp safe zone for circle masks. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#FF2F7027"
+    <path android:fillColor="#FF367427"
         android:pathData="M32,35H76A4,4 0 0,1 80,39V69A4,4 0 0,1 76,73H32A4,4 0 0,1 28,69V39A4,4 0 0,1 32,35Z" />
     <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.1" android:strokeLineCap="butt"
         android:pathData="M54,35V73 M43.7,54A10.3,10.3 0 1,0 64.3,54A10.3,10.3 0 1,0 43.7,54Z M28,44.25H35.5A2,2 0 0,1 37.5,46.25V61.75A2,2 0 0,1 35.5,63.75H28 M80,44.25H72.5A2,2 0 0,0 70.5,46.25V61.75A2,2 0 0,0 72.5,63.75H80" />
