@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Gozdor1234/Scoreline/releases/latest"><img src="https://img.shields.io/github/v/release/Gozdor1234/Scoreline?label=latest%20build&color=2ea44f" alt="Latest build"></a>
+  <a href="https://github.com/Gozdor1234/Scoreology/releases/latest"><img src="https://img.shields.io/github/v/release/Gozdor1234/Scoreology?label=latest%20build&color=2ea44f" alt="Latest build"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white" alt="Android 8.0+">
   <img src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin and Jetpack Compose">
-  <a href="https://github.com/Gozdor1234/Scoreline/actions"><img src="https://img.shields.io/github/actions/workflow/status/Gozdor1234/Scoreline/build-apk.yml?label=build" alt="Build status"></a>
+  <a href="https://github.com/Gozdor1234/Scoreology/actions"><img src="https://img.shields.io/github/actions/workflow/status/Gozdor1234/Scoreology/build-apk.yml?label=build" alt="Build status"></a>
 </p>
 
 <p align="center"><b>Every score, every stat, every standing. No ads, no clutter, no account.</b></p>
@@ -37,7 +37,7 @@
 
 ## 📲 Install it
 
-1. On your Android phone, open the **[latest release](https://github.com/Gozdor1234/Scoreline/releases/latest)**.
+1. On your Android phone, open the **[latest release](https://github.com/Gozdor1234/Scoreology/releases/latest)**.
 2. Tap the **`Scoreology-N.apk`** file to download it, then open it.
 3. If Android asks, allow **Install unknown apps** for your browser or Files app.
 4. If Play Protect warns about an unrecognized developer, tap **Install anyway**. This happens with any app that isn't from the Play Store.
