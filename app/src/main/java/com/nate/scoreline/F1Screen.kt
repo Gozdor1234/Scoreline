@@ -43,6 +43,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.geometry.Size
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Shadow
@@ -164,19 +169,25 @@ private fun SessionCard(s: F1Session, fav: Favorites, extra: SessionExtra?) {
                         color = if (isFav) LiveRed else MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1.15f),
                     )
                     val key = F1.driverKey(e.driver)
-                    extra?.tyres?.get(key)?.let { TyreStrip(it) }
+                    // Tyres sit centered in their own column between the name and the points.
+                    if (!extra?.tyres.isNullOrEmpty()) {
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                            extra?.tyres?.get(key)?.let { TyreStrip(it) }
+                        }
+                    }
                     extra?.points?.let { pts ->
-                        val p = pts[key] ?: "0"
+                        val raw = pts[key] ?: "0"
+                        val scored = (raw.toDoubleOrNull() ?: 0.0) > 0.0
                         Text(
-                            p,
-                            Modifier.width(34.dp),
+                            if (scored) "+$raw" else raw,
+                            Modifier.width(40.dp),
                             textAlign = TextAlign.End,
                             style = MaterialTheme.typography.labelLarge,
-                            fontWeight = if (p != "0") FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (p != "0") MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = if (scored) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (scored) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -296,25 +307,50 @@ private fun CircuitCard(w: F1Weekend) {
     }
 }
 
-/**
- * Compound letters in fitting order. On light backgrounds, white (hard) and yellow (medium)
- * get a faint dark halo so they stay readable; no box behind them.
- */
+/** Tyre icons in fitting order, first set on the left. */
 @Composable
 private fun TyreStrip(tyres: List<Tyre>) {
-    val light = MaterialTheme.colorScheme.surface.luminance() > 0.5f
-    Row(Modifier.padding(start = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        tyres.forEach { t ->
-            val halo = light && (t == Tyre.HARD || t == Tyre.MEDIUM)
-            Text(
-                t.label,
-                modifier = Modifier.padding(start = 6.dp),
-                color = tyreColor(t),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                style = if (halo) TextStyle(shadow = Shadow(Color(0xAA000000), Offset.Zero, blurRadius = 4f)) else TextStyle.Default,
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        tyres.forEach { TyreIcon(it) }
+    }
+}
+
+/**
+ * Drawn tyre: black sidewall, a colored compound ring with a small gap at the top
+ * (where the maker's name sits on the real thing), and a dark wheel with spokes.
+ */
+@Composable
+private fun TyreIcon(t: Tyre, size: Dp = 18.dp) {
+    val ring = tyreColor(t)
+    Canvas(Modifier.size(size).semantics { contentDescription = t.name.lowercase() + " tyre" }) {
+        val c = center
+        val r = this.size.minDimension / 2f
+        drawCircle(Color(0xFF111214), r, c)
+        // Compound ring, open at the top.
+        val ringR = r * 0.74f
+        val stroke = r * 0.14f
+        drawArc(
+            color = ring,
+            startAngle = -60f, sweepAngle = 300f, useCenter = false,
+            topLeft = Offset(c.x - ringR, c.y - ringR),
+            size = Size(ringR * 2, ringR * 2),
+            style = Stroke(width = stroke, cap = StrokeCap.Round),
+        )
+        // Short bar in the gap, like the logo band on the sidewall.
+        drawLine(ring, Offset(c.x - r * 0.28f, c.y - ringR), Offset(c.x + r * 0.28f, c.y - ringR), strokeWidth = stroke * 0.8f)
+        // Wheel and spokes.
+        val wheelR = r * 0.46f
+        drawCircle(Color(0xFF2E3136), wheelR, c)
+        for (i in 0 until 8) {
+            val a = Math.toRadians(i * 45.0)
+            drawLine(
+                Color(0xFF1A1C1F),
+                c,
+                Offset(c.x + (wheelR * 0.9f * Math.cos(a)).toFloat(), c.y + (wheelR * 0.9f * Math.sin(a)).toFloat()),
+                strokeWidth = r * 0.07f,
             )
         }
+        drawCircle(Color(0xFF1A1C1F), wheelR * 0.25f, c)
     }
 }
 
