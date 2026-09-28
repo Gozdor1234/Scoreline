@@ -57,6 +57,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import coil.compose.AsyncImage
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import java.time.OffsetDateTime
@@ -319,22 +323,42 @@ fun agoText(updatedAt: Long): String {
     return if (s < 60) "Updated just now" else "Updated ${s / 60} min ago"
 }
 
-/** Round badge in an F1 team's color with its short code (see F1Teams). */
+/**
+ * F1 team logo (official image from formula1.com): full color on light themes, white on dark.
+ * Falls back to a round badge in the team's color with its short code if no logo loads.
+ */
 @Composable
 fun TeamBadge(team: String, size: Dp = 26.dp) {
-    val st = F1Teams.style(team)
-    Box(
-        Modifier.size(size).clip(CircleShape).background(Color(st.color)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            st.code,
-            color = Color.White,
-            fontSize = (size.value * 0.33f).sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            softWrap = false,
-        )
+    val white = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val year = remember { java.time.LocalDate.now().year }
+    val urls = remember(team, white, year) { F1Teams.logoUrls(team, white, year) }
+    var attempt by remember(urls) { mutableIntStateOf(0) }
+    // Logos are mostly wordmarks, so give them a wider box than the round badge.
+    Box(Modifier.width(size * 1.4f).height(size), contentAlignment = Alignment.Center) {
+        if (attempt < urls.size) {
+            AsyncImage(
+                model = urls[attempt],
+                contentDescription = team,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+                onError = { attempt++ },
+            )
+        } else {
+            val st = F1Teams.style(team)
+            Box(
+                Modifier.size(size).clip(CircleShape).background(Color(st.color)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    st.code,
+                    color = Color.White,
+                    fontSize = (size.value * 0.33f).sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+        }
     }
 }
 

@@ -201,7 +201,7 @@ fun SimpleRow(
                 leading()
                 Spacer(Modifier.width(10.dp))
             } else if (header) {
-                Spacer(Modifier.width(36.dp)) // keep header columns aligned with badge rows
+                Spacer(Modifier.width(46.dp)) // keep header columns aligned with logo rows (36 + 10 gap)
             }
             Column(Modifier.weight(1f)) {
                 Text(main, style = style, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)

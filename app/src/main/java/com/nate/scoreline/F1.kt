@@ -198,21 +198,34 @@ object F1 {
  * tolerates Jolpica's naming ("Haas F1 Team", "RB F1 Team", "Alpine F1 Team"...).
  */
 object F1Teams {
-    data class Style(val code: String, val color: Long)
+    /** slug is formula1.com's team folder name, used for the official logo images. */
+    data class Style(val code: String, val color: Long, val slug: String? = null)
 
     private val styles = listOf(
-        listOf("mercedes") to Style("MER", 0xFF00A19C),
-        listOf("ferrari") to Style("FER", 0xFFE8002D),
-        listOf("mclaren") to Style("MCL", 0xFFFF8000),
-        listOf("racing bulls", "rb f1", "visa", "alphatauri") to Style("RB", 0xFF6692FF),
-        listOf("red bull") to Style("RBR", 0xFF3671C6),
-        listOf("aston") to Style("AMR", 0xFF229971),
-        listOf("alpine") to Style("ALP", 0xFF0093CC),
-        listOf("williams") to Style("WIL", 0xFF1868DB),
-        listOf("haas") to Style("HAA", 0xFF9C9FA2),
-        listOf("audi", "sauber", "kick") to Style("AUD", 0xFFBB0A30),
-        listOf("cadillac") to Style("CAD", 0xFF5A5A5A),
+        listOf("mercedes") to Style("MER", 0xFF00A19C, "mercedes"),
+        listOf("ferrari") to Style("FER", 0xFFE8002D, "ferrari"),
+        listOf("mclaren") to Style("MCL", 0xFFFF8000, "mclaren"),
+        listOf("racing bulls", "rb f1", "visa", "alphatauri") to Style("RB", 0xFF6692FF, "racingbulls"),
+        listOf("red bull") to Style("RBR", 0xFF3671C6, "redbullracing"),
+        listOf("aston") to Style("AMR", 0xFF229971, "astonmartin"),
+        listOf("alpine") to Style("ALP", 0xFF0093CC, "alpine"),
+        listOf("williams") to Style("WIL", 0xFF1868DB, "williams"),
+        listOf("haas") to Style("HAA", 0xFF9C9FA2, "haasf1team"),
+        listOf("audi", "sauber", "kick") to Style("AUD", 0xFFBB0A30, "audi"),
+        listOf("cadillac") to Style("CAD", 0xFF5A5A5A, "cadillac"),
     )
+
+    /**
+     * Official logo image URLs from formula1.com's media server, newest season first.
+     * white = the all-white version for dark themes; otherwise the full-color logo.
+     */
+    fun logoUrls(team: String, white: Boolean, year: Int): List<String> {
+        val slug = style(team).slug ?: return emptyList()
+        val variant = if (white) "logowhite" else "logo"
+        return listOf(year, 2026).distinct().map { y ->
+            "https://media.formula1.com/image/upload/c_fit,h_96/q_auto/v1740000000/common/f1/$y/$slug/$y$slug$variant.webp"
+        }
+    }
 
     fun style(team: String): Style {
         val t = team.lowercase()
