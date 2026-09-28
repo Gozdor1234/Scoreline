@@ -43,6 +43,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 
 @Composable
 fun F1Screen(modifier: Modifier) {
@@ -64,6 +72,15 @@ private fun WeekendView() {
         key = "f1w",
         intervalMs = { w -> if (w?.any { e -> e.sessions.any { it.isLive } } == true) LIVE_MS else IDLE_MS },
     ) { F1.weekends() }
+
+    // Tyre stints (OpenF1) and points (Jolpica), refreshed alongside the weekend data.
+    var extras by remember { mutableStateOf<Map<String, SessionExtra>>(emptyMap()) }
+    LaunchedEffect(polled.state.updatedAt) {
+        val ws = polled.state.data ?: return@LaunchedEffect
+        val m = HashMap<String, SessionExtra>()
+        ws.forEach { w -> m.putAll(runCatching { F1Extras.load(w) }.getOrDefault(emptyMap())) }
+        extras = m
+    }
 
     LoadableContent(polled) { weekends ->
         if (weekends.isEmpty()) {
@@ -87,11 +104,11 @@ private fun WeekendView() {
                 }
                 item(key = "circuit-${w.id}") { CircuitCard(w) }
                 // Newest session first: Race, then Qualifying, then practice.
-                items(w.sessions.sortedByDescending { it.date }, key = { "${w.id}-${it.id}" }) { s -> SessionCard(s, fav) }
+                items(w.sessions.sortedByDescending { it.date }, key = { "${w.id}-${it.id}" }) { s -> SessionCard(s, fav, extras[s.id]) }
             }
             item {
                 Text(
-                    agoText(polled.state.updatedAt) + "  •  Live order from ESPN (running order, not official timing).",
+                    agoText(polled.state.updatedAt) + "  •  Live order from ESPN (running order, not official timing). Tyres from OpenF1 after each session; points from Jolpica.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(16.dp),
@@ -102,7 +119,7 @@ private fun WeekendView() {
 }
 
 @Composable
-private fun SessionCard(s: F1Session, fav: Favorites) {
+private fun SessionCard(s: F1Session, fav: Favorites, extra: SessionExtra?) {
     var expanded by remember(s.id) { mutableStateOf(s.isLive) }
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp)) {
         Column(Modifier.padding(12.dp)) {
@@ -129,7 +146,23 @@ private fun SessionCard(s: F1Session, fav: Favorites) {
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = if (isFav || e.winner) FontWeight.Bold else FontWeight.Normal,
                         color = if (isFav) LiveRed else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
                     )
+                    val key = F1.driverKey(e.driver)
+                    extra?.tyres?.get(key)?.let { TyreStrip(it) }
+                    extra?.points?.let { pts ->
+                        val p = pts[key] ?: "0"
+                        Text(
+                            p,
+                            Modifier.width(34.dp),
+                            textAlign = TextAlign.End,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (p != "0") FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (p != "0") MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
             if (s.results.size > 3) {
@@ -256,4 +289,28 @@ private fun CircuitCard(w: F1Weekend) {
             )
         }
     }
+}
+
+/** Compound letters in fitting order, each on a dark chip so white (hard) reads on light themes too. */
+@Composable
+private fun TyreStrip(tyres: List<Tyre>) {
+    Row(Modifier.padding(start = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        tyres.forEach { t ->
+            Box(
+                Modifier.padding(start = 3.dp)
+                    .background(Color(0xFF1F2126), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 4.dp, vertical = 1.dp),
+            ) {
+                Text(t.label, color = tyreColor(t), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+private fun tyreColor(t: Tyre): Color = when (t) {
+    Tyre.HARD -> Color.White
+    Tyre.SOFT -> Color(0xFFFF3B30)
+    Tyre.MEDIUM -> Color(0xFFFFD60A)
+    Tyre.INTER -> Color(0xFF34C759)
+    Tyre.WET -> Color(0xFF3A8DFF)
 }
