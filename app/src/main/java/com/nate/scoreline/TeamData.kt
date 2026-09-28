@@ -88,6 +88,8 @@ data class CareerTable(
     /** (season label, stats) */
     val rows: List<Pair<String, List<String>>>,
     val totals: List<String>,
+    /** Team logo URL for each row (the team the player was on that season), "" if unknown. */
+    val rowLogos: List<String> = emptyList(),
 )
 
 data class OverviewSplits(val title: String, val labels: List<String>, val rows: List<Pair<String, List<String>>>)
@@ -134,7 +136,7 @@ object TeamApi {
 
     suspend fun athlete(league: League, id: String) = parseAthlete(Net.getJson("$COMMON/${league.path}/athletes/$id"))
     suspend fun athleteStats(league: League, id: String) =
-        parseAthleteStats(Net.getJson("$COMMON/${league.path}/athletes/$id/stats"))
+        parseAthleteStats(Net.getJson("$COMMON/${league.path}/athletes/$id/stats"), league)
     suspend fun gameLog(league: League, id: String, season: String?) =
         parseGameLog(Net.getJson("$COMMON/${league.path}/athletes/$id/gamelog" + if (season != null) "?season=$season" else ""))
 
@@ -277,9 +279,30 @@ object TeamApi {
         )
     }
 
-    fun parseAthleteStats(root: JSONObject): List<CareerTable> =
-        root.arr("categories").objects().mapNotNull { c ->
-            val rows = c.arr("statistics").objects().map { r ->
+    fun parseAthleteStats(root: JSONObject, league: League? = null): List<CareerTable> {
+        // Top-level "teams" lists every team in the player's career, with logos. Index by id and by key (slug).
+        val teamLogos = HashMap<String, String>()
+        root.obj("teams")?.let { teams ->
+            val keys = teams.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                val t = teams.obj(k) ?: continue
+                val logo = t.arr("logos").objects().firstOrNull()?.str("href")?.ifEmpty { null } ?: t.str("logo")
+                if (logo.isNotEmpty()) {
+                    teamLogos[k] = logo
+                    t.str("id").takeIf { it.isNotEmpty() }?.let { teamLogos[it] = logo }
+                    t.str("slug").takeIf { it.isNotEmpty() }?.let { teamLogos[it] = logo }
+                }
+            }
+        }
+        fun logoFor(r: JSONObject): String {
+            val id = r.str("teamId")
+            return teamLogos[id] ?: teamLogos[r.str("teamSlug")]
+                ?: if (league == League.CFB && id.isNotEmpty()) "https://a.espncdn.com/i/teamlogos/ncaa/500/$id.png" else ""
+        }
+        return root.arr("categories").objects().mapNotNull { c ->
+            val raw = c.arr("statistics").objects()
+            val rows = raw.map { r ->
                 val season = r.obj("season")
                 val label = season?.str("displayName")?.ifEmpty { null } ?: season?.numText("year") ?: ""
                 label to r.arr("stats").strings()
@@ -290,8 +313,10 @@ object TeamApi {
                 labels = c.arr("labels").strings(),
                 rows = rows,
                 totals = c.arr("totals").strings(),
+                rowLogos = raw.map(::logoFor),
             )
         }.filter { t -> t.rows.any { r -> r.second.any { it.isNotBlank() && it != "0" && it != "0.0" && it != "-" } } }
+    }
 
     fun parseGameLog(root: JSONObject): GameLog {
         val labels = root.arr("labels").strings()

@@ -174,7 +174,8 @@ fun PlayerScreen(league: League, athleteId: String, onBack: () -> Unit, open: (R
                                         rows = t.rows,
                                         totalsLabel = "Career",
                                         totals = t.totals,
-                                        firstWidth = 72.dp,
+                                        firstWidth = 84.dp,
+                                        rowIcons = t.rowLogos,
                                     )
                                 }
                             }

@@ -112,6 +112,8 @@ fun StatGrid(
     rowClickable: (Int) -> Boolean = { false },
     onRowClick: (Int) -> Unit = {},
     groups: List<ColumnGroup> = emptyList(),
+    /** Optional small logo shown after each row's first-column text (e.g. the team for that season). */
+    rowIcons: List<String> = emptyList(),
 ) {
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
         Column(Modifier.padding(vertical = 10.dp)) {
@@ -143,7 +145,8 @@ fun StatGrid(
                 }
                 GridRow(firstHeader, labels, firstWidth, cellWidth, header = true)
                 rows.forEachIndexed { i, (first, cells) ->
-                    GridRow(first, cells, firstWidth, cellWidth, onFirst = if (rowClickable(i)) { { onRowClick(i) } } else null)
+                    GridRow(first, cells, firstWidth, cellWidth, onFirst = if (rowClickable(i)) { { onRowClick(i) } } else null,
+                        icon = rowIcons.getOrNull(i)?.ifEmpty { null })
                 }
                 if (totals.any { it.isNotBlank() }) GridRow(totalsLabel, totals, firstWidth, cellWidth, bold = true)
             }
@@ -160,23 +163,33 @@ private fun GridRow(
     header: Boolean = false,
     bold: Boolean = false,
     onFirst: (() -> Unit)? = null,
+    icon: String? = null,
 ) {
     val style = if (header) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodySmall
     val weight = if (bold) FontWeight.Bold else FontWeight.Normal
-    Row(Modifier.padding(vertical = 4.dp)) {
-        Text(
-            first,
+    Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
             Modifier.width(firstWidth).then(if (onFirst != null) Modifier.clickable(onClick = onFirst) else Modifier),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            style = style,
-            fontWeight = if (onFirst != null) FontWeight.Medium else weight,
-            color = when {
-                header -> MaterialTheme.colorScheme.onSurfaceVariant
-                onFirst != null -> MaterialTheme.colorScheme.primary
-                else -> MaterialTheme.colorScheme.onSurface
-            },
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                first,
+                Modifier.weight(1f, fill = false),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = style,
+                fontWeight = if (onFirst != null) FontWeight.Medium else weight,
+                color = when {
+                    header -> MaterialTheme.colorScheme.onSurfaceVariant
+                    onFirst != null -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.onSurface
+                },
+            )
+            if (icon != null) {
+                Spacer(Modifier.width(6.dp))
+                Logo(icon, 16.dp)
+            }
+        }
         cells.forEach { c ->
             Text(
                 c,
