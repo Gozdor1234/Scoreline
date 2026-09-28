@@ -44,6 +44,9 @@ data class F1Round(
     val hasSprint: Boolean,
     val winner: String? = null,
     val winnerTeam: String? = null,
+    val circuitId: String = "",
+    /** Weekend sessions in order: (label, UTC ISO start). */
+    val sessions: List<Pair<String, String>> = emptyList(),
 )
 
 /** One qualifying classification line. q1..q3 are lap times ("1:29.123"), blank if not set. */
@@ -78,6 +81,20 @@ object F1 {
         val winners = async { runCatching { parseWinners(Net.getJson("$JOLPICA/results/1.json?limit=40")) }.getOrDefault(emptyMap()) }
         val w = winners.await()
         sched.await().map { r -> w[r.round]?.let { (d, t) -> r.copy(winner = d, winnerTeam = t) } ?: r }
+    }
+    /** Winner (driver, team) of the most recent earlier race at this circuit, with its year. */
+    suspend fun previousWinner(circuitId: String, beforeYear: Int): Triple<Int, String, String>? {
+        if (circuitId.isEmpty()) return null
+        val root = Net.getJson("https://api.jolpi.ca/ergast/f1/circuits/$circuitId/results/1.json?limit=100")
+        val races = raceTable(root).filter { (it.str("season").toIntOrNull() ?: 0) < beforeYear }
+        val last = races.maxByOrNull { it.str("season").toIntOrNull() ?: 0 } ?: return null
+        val res = last.arr("Results").objects().firstOrNull() ?: return null
+        val d = res.obj("Driver")
+        return Triple(
+            last.str("season").toIntOrNull() ?: 0,
+            "${d?.str("givenName") ?: ""} ${d?.str("familyName") ?: ""}".trim(),
+            res.obj("Constructor")?.str("name") ?: "",
+        )
     }
     suspend fun raceResults(round: String): F1Race? = parseLastRace(Net.getJson("$JOLPICA/$round/results.json"))
     suspend fun sprintResults(round: String): F1Race? = parseLastRace(Net.getJson("$JOLPICA/$round/sprint.json"), "SprintResults")
@@ -161,7 +178,21 @@ object F1 {
         val c = r.obj("Circuit")
         val loc = c?.obj("Location")
         val time = r.str("time")
+        fun iso(o: JSONObject?): String? {
+            val d = o?.str("date") ?: return null
+            if (d.isEmpty()) return null
+            val t = o.str("time")
+            return if (t.isNotEmpty()) "${d}T$t" else d
+        }
+        val sessions = listOf(
+            "Practice 1" to "FirstPractice", "Practice 2" to "SecondPractice", "Practice 3" to "ThirdPractice",
+            "Sprint Qualifying" to "SprintQualifying", "Sprint Qualifying" to "SprintShootout",
+            "Sprint" to "Sprint", "Qualifying" to "Qualifying",
+        ).mapNotNull { (label, key) -> iso(r.obj(key))?.let { label to it } } +
+            listOfNotNull(if (r.str("date").isNotEmpty()) "Race" to (if (time.isNotEmpty()) "${r.str("date")}T$time" else r.str("date")) else null)
         F1Round(
+            circuitId = c?.str("circuitId") ?: "",
+            sessions = sessions.sortedBy { it.second },
             round = r.str("round"),
             name = r.str("raceName"),
             circuit = c?.str("circuitName") ?: "",

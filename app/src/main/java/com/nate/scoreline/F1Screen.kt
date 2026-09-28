@@ -43,6 +43,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.animation.animateContentSize
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.semantics.semantics
@@ -242,20 +245,28 @@ object CircuitStore {
 /** Track map plus circuit facts, under the race title. Hidden if the circuit isn't in the dataset. */
 @Composable
 private fun CircuitCard(w: F1Weekend) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        CircuitInfo(w.circuit, w.location)
+    }
+}
+
+/** Track map and facts for a circuit, or nothing if it isn't in the bundled dataset. */
+@Composable
+private fun CircuitInfo(circuitName: String, location: String, mapHeight: Dp = 200.dp) {
     val ctx = LocalContext.current
     val all by produceState<List<Circuit>?>(initialValue = null) {
         value = withContext(Dispatchers.IO) { CircuitStore.all(ctx) }
     }
     val list = all ?: return
-    val city = w.location.substringBefore(",").trim()
-    val c = remember(list, w.circuit, city) { Circuits.find(list, w.circuit, city) } ?: return
+    val city = location.substringBefore(",").trim()
+    val c = remember(list, circuitName, city) { Circuits.find(list, circuitName, city) } ?: return
     val projected = remember(c.id) { Circuits.project(c.points) }
     val line = MaterialTheme.colorScheme.onSurface
     val glow = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
 
-    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+    run {
         Column(Modifier.padding(bottom = 10.dp)) {
-            Canvas(Modifier.fillMaxWidth().height(200.dp).padding(18.dp)) {
+            Canvas(Modifier.fillMaxWidth().height(mapHeight).padding(18.dp)) {
                 val (pts, _) = projected
                 val wU = pts.maxOf { it.first }.coerceAtLeast(1e-6f)
                 val hU = pts.maxOf { it.second }.coerceAtLeast(1e-6f)
@@ -281,9 +292,14 @@ private fun CircuitCard(w: F1Weekend) {
             val facts = listOf(
                 "Length" to if (c.lengthM > 0) "%.3f km".format(c.lengthM / 1000.0) else "",
                 "First Grand Prix" to if (c.firstGp > 0) c.firstGp.toString() else "",
-                "Location" to w.location.ifBlank { c.location },
+                "Location" to location.ifBlank { c.location },
                 "Opened" to if (c.opened > 0) c.opened.toString() else "",
                 "Altitude" to "${c.altitudeM} m",
+                // Races run the fewest laps that exceed 305 km (Monaco: 260 km).
+                "Race laps (approx.)" to if (c.lengthM > 0) {
+                    val target = if ("monaco" in c.name.lowercase()) 260_000.0 else 305_000.0
+                    (Math.floor(target / c.lengthM).toInt() + 1).toString()
+                } else "",
             ).filter { it.second.isNotBlank() }
             // Two columns of facts
             val half = (facts.size + 1) / 2
@@ -384,6 +400,7 @@ fun LazyListScope.resultItems(race: F1Race, fav: Favorites) {
 private fun SeasonView(open: (Route) -> Unit) {
     val polled = rememberPolled<List<F1Round>>("f1season", { IDLE_MS * 2 }) { F1.season() }
     var upcoming by rememberSaveable { mutableStateOf(false) }
+    var expandedRound by rememberSaveable { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = !upcoming, onClick = { upcoming = false }, label = { Text("Results") })
@@ -400,8 +417,10 @@ private fun SeasonView(open: (Route) -> Unit) {
             }
             LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
                 items(list, key = { it.round }) { r ->
-                    RoundCard(r, next = upcoming && r == list.first()) {
-                        if (!upcoming) open(Route.F1Race(r.round, r.name, r.hasSprint))
+                    val isOpen = upcoming && expandedRound == r.round
+                    RoundCard(r, next = upcoming && r == list.first(), expandable = upcoming, expanded = isOpen) {
+                        if (upcoming) expandedRound = if (isOpen) null else r.round
+                        else open(Route.F1Race(r.round, r.name, r.hasSprint))
                     }
                 }
                 item { SourceNote() }
@@ -411,12 +430,13 @@ private fun SeasonView(open: (Route) -> Unit) {
 }
 
 @Composable
-private fun RoundCard(r: F1Round, next: Boolean, onClick: () -> Unit) {
+private fun RoundCard(r: F1Round, next: Boolean, expandable: Boolean = false, expanded: Boolean = false, onClick: () -> Unit) {
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp).animateContentSize(),
         colors = if (next) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer) else CardDefaults.cardColors(),
     ) {
+      Column {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.width(44.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("R${r.round}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -454,7 +474,67 @@ private fun RoundCard(r: F1Round, next: Boolean, onClick: () -> Unit) {
                         modifier = Modifier.padding(top = 4.dp))
                 }
             }
+            if (expandable) {
+                Icon(
+                    if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    contentDescription = if (expanded) "Hide details" else "Show details",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
+        if (expanded) RaceDetails(r)
+      }
+    }
+}
+
+/** Dropdown under an upcoming race: countdown, weekend schedule, last winner here, and the track. */
+@Composable
+private fun RaceDetails(r: F1Round) {
+    val start = F1ExtrasParse.instant(r.dateIso.let { if ('T' in it) it else it + "T12:00:00Z" })
+    val year = start?.atOffset(java.time.ZoneOffset.UTC)?.year ?: java.time.LocalDate.now().year
+    val prev by produceState<Triple<Int, String, String>?>(null, r.circuitId) {
+        value = runCatching { F1.previousWinner(r.circuitId, year) }.getOrNull()
+    }
+    Column(Modifier.fillMaxWidth()) {
+        HorizontalDivider(Modifier.padding(horizontal = 12.dp))
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+            if (start != null) {
+                val d = java.time.Duration.between(java.time.Instant.now(), start)
+                if (!d.isNegative) {
+                    val days = d.toDays()
+                    val hours = d.minusDays(days).toHours()
+                    Text(
+                        "Lights out in " + (if (days > 0) "$days day${if (days == 1L) "" else "s"}, " else "") +
+                            "$hours hour${if (hours == 1L) "" else "s"}",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            if (r.sessions.isNotEmpty()) {
+                Text("Weekend schedule (your time)", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
+                r.sessions.forEach { (label, iso) ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (label == "Race") FontWeight.Bold else FontWeight.Normal)
+                        Text(roundDate(iso), style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (label == "Race") FontWeight.Bold else FontWeight.Normal)
+                    }
+                }
+            }
+            prev?.let { (y, driver, team) ->
+                Text("Last winner here", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TeamBadge(team, 20.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("$driver ($y)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+        CircuitInfo(r.circuit, r.location, mapHeight = 180.dp)
     }
 }
 
