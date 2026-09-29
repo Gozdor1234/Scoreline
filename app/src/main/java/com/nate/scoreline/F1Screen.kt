@@ -85,7 +85,7 @@ fun F1Screen(modifier: Modifier, open: (Route) -> Unit) {
         when (tab) {
             0 -> WeekendView()
             1 -> SeasonView(open)
-            else -> LastRaceView()
+            else -> LastRaceView(open)
         }
     }
 }
@@ -208,7 +208,7 @@ private fun SessionCard(s: F1Session, fav: Favorites, extra: SessionExtra?) {
 }
 
 @Composable
-private fun LastRaceView() {
+private fun LastRaceView(open: (Route) -> Unit) {
     val fav = Favorites.get(LocalContext.current)
     val polled = rememberPolled<F1Race?>("f1last", { IDLE_MS * 2 }) { F1.lastRace() }
     val s = polled.state
@@ -227,7 +227,7 @@ private fun LastRaceView() {
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            resultItems(race, fav)
+            resultItems(race, fav, open)
             item { SourceNote() }
         }
     }
@@ -382,7 +382,7 @@ private fun tyreColor(t: Tyre): Color = when (t) {
 }
 
 /** Result rows shared by Last race and the season race screen. */
-fun LazyListScope.resultItems(race: F1Race, fav: Favorites) {
+fun LazyListScope.resultItems(race: F1Race, fav: Favorites, open: ((Route) -> Unit)? = null) {
     item { SimpleRow("Pos", "Driver", "", "Grid", "Pts", header = true) }
     items(race.results) { r ->
         SimpleRow(
@@ -393,6 +393,7 @@ fun LazyListScope.resultItems(race: F1Race, fav: Favorites) {
             b = r.points,
             highlight = fav.isFavDriver(r.driver),
             leading = { TeamBadge(r.team) },
+            onClick = if (open != null && r.driverId.isNotEmpty()) { { open(Route.F1Driver(r.driverId, r.driver)) } } else null,
         )
     }
 }
@@ -552,7 +553,7 @@ private fun roundDate(iso: String): String = runCatching {
 
 /** Full classification for one round, with a Sprint tab on sprint weekends. */
 @Composable
-fun F1RaceScreen(round: String, name: String, hasSprint: Boolean, onBack: () -> Unit) {
+fun F1RaceScreen(round: String, name: String, hasSprint: Boolean, onBack: () -> Unit, open: (Route) -> Unit = {}) {
     val fav = Favorites.get(LocalContext.current)
     var tab by rememberSaveable { mutableIntStateOf(0) }
     // Missing results load as an empty race, so the screen shows a message instead of spinning.
@@ -591,7 +592,7 @@ fun F1RaceScreen(round: String, name: String, hasSprint: Boolean, onBack: () -> 
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    resultItems(r, fav)
+                    resultItems(r, fav, open)
                     item { SourceNote() }
                 }
             }

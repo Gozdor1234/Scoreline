@@ -30,6 +30,8 @@ data class F1ResultRow(
     val timeOrStatus: String,
     val points: String,
     val fastestLap: Boolean,
+    val driverId: String = "",
+    val constructorId: String = "",
 )
 
 data class F1Race(val name: String, val round: String, val circuit: String, val date: String, val results: List<F1ResultRow>)
@@ -61,8 +63,11 @@ data class F1QualiRow(val pos: String, val driver: String, val team: String, val
         }
 }
 
-data class F1DriverStanding(val pos: String, val name: String, val code: String, val team: String, val points: String, val wins: String)
-data class F1TeamStanding(val pos: String, val team: String, val points: String, val wins: String)
+data class F1DriverStanding(
+    val pos: String, val name: String, val code: String, val team: String, val points: String, val wins: String,
+    val driverId: String = "", val constructorId: String = "",
+)
+data class F1TeamStanding(val pos: String, val team: String, val points: String, val wins: String, val constructorId: String = "")
 
 /**
  * Live/current-weekend session order comes from ESPN.
@@ -144,7 +149,7 @@ object F1 {
         )
     }
 
-    private fun raceTable(root: JSONObject) = root.obj("MRData")?.obj("RaceTable")?.arr("Races").objects()
+    fun raceTable(root: JSONObject) = root.obj("MRData")?.obj("RaceTable")?.arr("Races").objects()
     private fun standingsList(root: JSONObject) =
         root.obj("MRData")?.obj("StandingsTable")?.arr("StandingsLists").objects()?.firstOrNull()
 
@@ -163,6 +168,8 @@ object F1 {
                 timeOrStatus = time.ifEmpty { r.str("status") },
                 points = r.str("points"),
                 fastestLap = r.obj("FastestLap")?.str("rank") == "1",
+                driverId = d?.str("driverId") ?: "",
+                constructorId = r.obj("Constructor")?.str("constructorId") ?: "",
             )
         }
         return F1Race(
@@ -233,6 +240,8 @@ object F1 {
                 team = s.arr("Constructors").objects().lastOrNull()?.str("name") ?: "",
                 points = s.str("points"),
                 wins = s.str("wins"),
+                driverId = d?.str("driverId") ?: "",
+                constructorId = s.arr("Constructors").objects().lastOrNull()?.str("constructorId") ?: "",
             )
         }
 
@@ -243,6 +252,7 @@ object F1 {
                 team = s.obj("Constructor")?.str("name") ?: "",
                 points = s.str("points"),
                 wins = s.str("wins"),
+                constructorId = s.obj("Constructor")?.str("constructorId") ?: "",
             )
         }
 }

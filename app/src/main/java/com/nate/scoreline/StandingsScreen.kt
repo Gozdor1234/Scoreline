@@ -1,6 +1,7 @@
 package com.nate.scoreline
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -36,17 +37,17 @@ import androidx.compose.ui.unit.dp
 private val standingTabs = listOf("NFL", "College", "F1 Drivers", "F1 Teams")
 
 @Composable
-fun StandingsScreen(modifier: Modifier) {
+fun StandingsScreen(modifier: Modifier, open: (Route) -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     Column(modifier.fillMaxSize()) {
         ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
             standingTabs.forEachIndexed { i, s -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(s) }) }
         }
         when (tab) {
-            0 -> TeamStandings(League.NFL)
-            1 -> TeamStandings(League.CFB)
-            2 -> DriverStandings()
-            else -> ConstructorStandings()
+            0 -> TeamStandings(League.NFL, open)
+            1 -> TeamStandings(League.CFB, open)
+            2 -> DriverStandings(open)
+            else -> ConstructorStandings(open)
         }
     }
 }
@@ -56,7 +57,7 @@ fun favTint(isFav: Boolean): Color =
     if (isFav) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
 
 @Composable
-private fun TeamStandings(league: League) {
+private fun TeamStandings(league: League, open: (Route) -> Unit) {
     val fav = Favorites.get(LocalContext.current)
     val polled = rememberPolled<List<StandingGroup>>(league, { 30 * 60_000L }) { Espn.standings(league) }
     LoadableContent(polled) { groups ->
@@ -84,7 +85,8 @@ private fun TeamStandings(league: League) {
                 }
                 item { StandingLine("Team", grp.headers, header = true, logo = "") }
                 items(grp.rows) { r ->
-                    StandingLine(r.name, r.cols, logo = r.logo, highlight = fav.isFavTeam(league, r.teamId))
+                    StandingLine(r.name, r.cols, logo = r.logo, highlight = fav.isFavTeam(league, r.teamId),
+                        onClick = if (r.teamId.isNotEmpty()) { { open(Route.Team(league, r.teamId)) } } else null)
                 }
             }
             item { Spacer(Modifier.padding(16.dp)) }
@@ -121,10 +123,15 @@ fun PinHeader(title: String, pinned: Boolean, canPin: Boolean = true, onToggle: 
 }
 
 @Composable
-private fun StandingLine(name: String, cols: List<String>, logo: String, header: Boolean = false, highlight: Boolean = false) {
+private fun StandingLine(
+    name: String, cols: List<String>, logo: String, header: Boolean = false, highlight: Boolean = false,
+    onClick: (() -> Unit)? = null,
+) {
     Column {
         Row(
-            Modifier.fillMaxWidth().background(favTint(highlight)).padding(horizontal = 16.dp, vertical = 6.dp),
+            Modifier.fillMaxWidth().background(favTint(highlight))
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+                .padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (!header) { Logo(logo, 22.dp); Spacer(Modifier.width(8.dp)) } else Spacer(Modifier.width(30.dp))
@@ -152,14 +159,15 @@ private fun StandingLine(name: String, cols: List<String>, logo: String, header:
 }
 
 @Composable
-private fun DriverStandings() {
+private fun DriverStandings(open: (Route) -> Unit) {
     val fav = Favorites.get(LocalContext.current)
     val polled = rememberPolled<List<F1DriverStanding>>("f1d", { 30 * 60_000L }) { F1.driverStandings() }
     LoadableContent(polled) { rows ->
         LazyColumn {
             item { SimpleRow("Pos", "Driver", "Team", "Wins", "Pts", header = true) }
             items(rows) { r ->
-                SimpleRow(r.pos, r.name, r.team, r.wins, r.points, highlight = fav.isFavDriver(r.name), leading = { TeamBadge(r.team) })
+                SimpleRow(r.pos, r.name, r.team, r.wins, r.points, highlight = fav.isFavDriver(r.name), leading = { TeamBadge(r.team) },
+                    onClick = if (r.driverId.isNotEmpty()) { { open(Route.F1Driver(r.driverId, r.name)) } } else null)
             }
             item { SourceNote() }
         }
@@ -167,12 +175,15 @@ private fun DriverStandings() {
 }
 
 @Composable
-private fun ConstructorStandings() {
+private fun ConstructorStandings(open: (Route) -> Unit) {
     val polled = rememberPolled<List<F1TeamStanding>>("f1c", { 30 * 60_000L }) { F1.teamStandings() }
     LoadableContent(polled) { rows ->
         LazyColumn {
             item { SimpleRow("Pos", "Team", "", "Wins", "Pts", header = true) }
-            items(rows) { r -> SimpleRow(r.pos, r.team, "", r.wins, r.points, leading = { TeamBadge(r.team) }) }
+            items(rows) { r ->
+                SimpleRow(r.pos, r.team, "", r.wins, r.points, leading = { TeamBadge(r.team) },
+                    onClick = if (r.constructorId.isNotEmpty()) { { open(Route.F1Team(r.constructorId, r.team)) } } else null)
+            }
             item { SourceNote() }
         }
     }
@@ -188,12 +199,15 @@ fun SimpleRow(
     header: Boolean = false,
     highlight: Boolean = false,
     leading: (@Composable () -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
 ) {
     val style = if (header) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium
     val color = if (header) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
     Column {
         Row(
-            Modifier.fillMaxWidth().background(favTint(highlight)).padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().background(favTint(highlight))
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(pos, Modifier.width(36.dp), style = style, color = color, fontWeight = FontWeight.SemiBold)
