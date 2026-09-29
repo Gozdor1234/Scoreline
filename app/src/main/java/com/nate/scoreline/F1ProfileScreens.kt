@@ -49,6 +49,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 
 private fun teamHex(team: String) = "%06X".format(F1Teams.style(team).color and 0xFFFFFF)
 
@@ -77,7 +85,7 @@ fun F1DriverScreen(driverId: String, fallbackName: String, onBack: () -> Unit, o
                             Modifier.fillMaxWidth().background(teamFade(teamHex(d.team))).padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Headshot(photo.orEmpty(), 96.dp)
+                            DriverPhoto(photo.orEmpty(), 96.dp)
                             Spacer(Modifier.width(16.dp))
                             Column {
                                 Text(d.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -442,6 +450,32 @@ private fun PointsHistory(rounds: List<Triple<String, String, Double>>) {
                     style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
             }
             HorizontalDivider()
+        }
+    }
+}
+
+/**
+ * Driver photo, asking formula1.com for its larger rendition ("4col") instead of the
+ * thumbnail OpenF1 links to ("1col"), and falling back to the thumbnail if that fails.
+ */
+@Composable
+private fun DriverPhoto(url: String, size: androidx.compose.ui.unit.Dp) {
+    val hi = remember(url) { url.replace("/1col/", "/4col/") }
+    var failed by remember(url) { mutableStateOf(false) }
+    Box(
+        Modifier.size(size).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (url.isNotBlank()) {
+            AsyncImage(
+                model = if (failed || hi == url) url else hi,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                alignment = Alignment.TopCenter,
+                filterQuality = FilterQuality.High,
+                modifier = Modifier.size(size),
+                onError = { if (!failed && hi != url) failed = true },
+            )
         }
     }
 }
