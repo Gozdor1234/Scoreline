@@ -77,9 +77,11 @@ import androidx.compose.foundation.background
 fun F1Screen(modifier: Modifier, open: (Route) -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     Column(modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = tab) {
-            listOf("This weekend", "Season", "Last race").forEachIndexed { i, s ->
-                Tab(selected = tab == i, onClick = { tab = i }, text = { Text(s) })
+        SearchTabs(open) {
+            TabRow(selectedTabIndex = tab) {
+                listOf("This weekend", "Season", "Last race").forEachIndexed { i, s ->
+                    Tab(selected = tab == i, onClick = { tab = i }, text = { Text(s) })
+                }
             }
         }
         when (tab) {

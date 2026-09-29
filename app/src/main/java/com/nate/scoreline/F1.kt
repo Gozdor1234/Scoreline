@@ -107,6 +107,11 @@ object F1 {
     suspend fun driverStandings(): List<F1DriverStanding> = parseDriverStandings(Net.getJson("$JOLPICA/driverStandings.json"))
     suspend fun teamStandings(): List<F1TeamStanding> = parseTeamStandings(Net.getJson("$JOLPICA/constructorStandings.json"))
 
+    /** Lowercase, accents removed, anything else non-alphanumeric turned into spaces. */
+    fun normalizeForSearch(s: String): String =
+        Normalizer.normalize(s, Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "").lowercase()
+            .replace(Regex("[^a-z0-9]+"), " ").trim()
+
     /** Match key for favorite drivers: accent-stripped, lowercased surname. Works across ESPN and Jolpica naming. */
     fun driverKey(fullName: String): String {
         val last = fullName.trim().split(Regex("\\s+")).lastOrNull() ?: return ""

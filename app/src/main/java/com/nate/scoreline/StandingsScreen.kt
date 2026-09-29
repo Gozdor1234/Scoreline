@@ -40,8 +40,10 @@ private val standingTabs = listOf("NFL", "College", "F1 Drivers", "F1 Teams")
 fun StandingsScreen(modifier: Modifier, open: (Route) -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     Column(modifier.fillMaxSize()) {
-        ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
-            standingTabs.forEachIndexed { i, s -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(s) }) }
+        SearchTabs(open) {
+            ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
+                standingTabs.forEachIndexed { i, s -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(s) }) }
+            }
         }
         when (tab) {
             0 -> TeamStandings(League.NFL, open)

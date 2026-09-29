@@ -129,19 +129,21 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
     val shownWeek = week ?: polled.state.data?.board?.week
 
     Column(modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = league.ordinal) {
-            League.entries.forEach { l ->
-                Tab(
-                    selected = l == league,
-                    onClick = { league = l },
-                    text = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            LeagueLogo(l)
-                            Spacer(Modifier.width(8.dp))
-                            Text(l.label)
-                        }
-                    },
-                )
+        SearchTabs(open) {
+            TabRow(selectedTabIndex = league.ordinal) {
+                League.entries.forEach { l ->
+                    Tab(
+                        selected = l == league,
+                        onClick = { league = l },
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                LeagueLogo(l)
+                                Spacer(Modifier.width(8.dp))
+                                Text(l.label)
+                            }
+                        },
+                    )
+                }
             }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {

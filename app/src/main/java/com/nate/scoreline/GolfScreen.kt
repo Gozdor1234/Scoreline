@@ -68,8 +68,10 @@ fun GolfScreen(modifier: Modifier, open: (Route) -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val nowP = rememberPolled<GolfNow>("golf-now", { n -> if (n?.state == "in") GOLF_LIVE_MS else IDLE_MS }) { Golf.now() }
     Column(modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = tab) {
-            listOf("Leaderboard", "Schedule").forEachIndexed { i, t -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) }) }
+        SearchTabs(open) {
+            TabRow(selectedTabIndex = tab) {
+                listOf("Leaderboard", "Schedule").forEachIndexed { i, t -> Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t) }) }
+            }
         }
         LoadableContent(nowP) { now ->
             if (tab == 0) GolfHome(now, open) else GolfSchedule(now, open)
