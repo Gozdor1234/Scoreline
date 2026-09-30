@@ -324,8 +324,11 @@ class ScoresWidgetFactory(private val c: Context, private val id: Int) : RemoteV
     override fun getCount(): Int = rows.size
 
     override fun getViewAt(position: Int): RemoteViews {
+        val r = rows.getOrNull(position) ?: return RemoteViews(c.packageName, R.layout.widget_row)
+        if (r.header != null) {
+            return RemoteViews(c.packageName, R.layout.widget_day).apply { setTextViewText(R.id.day_label, r.header) }
+        }
         val v = RemoteViews(c.packageName, R.layout.widget_row)
-        val r = rows.getOrNull(position) ?: return v
         val live = c.getColor(R.color.widget_live)
         val text = c.getColor(R.color.widget_text)
         val sub = c.getColor(R.color.widget_subtext)
@@ -352,7 +355,7 @@ class ScoresWidgetFactory(private val c: Context, private val id: Int) : RemoteV
     }
 
     override fun getLoadingView(): RemoteViews? = null
-    override fun getViewTypeCount(): Int = 1
+    override fun getViewTypeCount(): Int = 2 // game rows and day dividers
     override fun getItemId(position: Int): Long = position.toLong()
     override fun hasStableIds(): Boolean = false
 }

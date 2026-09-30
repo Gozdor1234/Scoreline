@@ -5,7 +5,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** One line of the home-screen widget, already formatted. */
+/** One line of the home-screen widget, already formatted. A row with [header] set is a day divider. */
 data class WidgetRow(
     val eventId: String,
     val awayName: String,
@@ -20,7 +20,12 @@ data class WidgetRow(
     val final: Boolean,
     val awayBall: Boolean,
     val homeBall: Boolean,
-)
+    val header: String? = null,
+) {
+    companion object {
+        fun divider(label: String) = WidgetRow("", "", "", "", "", "", "", false, false, false, false, header = label)
+    }
+}
 
 /** Pure formatting for the widget (no Android types, so it's unit-tested). */
 object WidgetFormat {
@@ -41,13 +46,36 @@ object WidgetFormat {
         ""
     }
 
-    /** Same order as the app: favorites, then live, upcoming, final; then by start time. */
+    /** "TODAY · WED, SEP 30", "TOMORROW · …", "YESTERDAY · …", else "THURSDAY, OCT 1". Shared with the app. */
+    fun dayLabel(d: LocalDate?, today: LocalDate): String {
+        if (d == null) return "DATE TBD"
+        val short = d.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+        return when (d) {
+            today -> "Today  ·  $short"
+            today.plusDays(1) -> "Tomorrow  ·  $short"
+            today.minusDays(1) -> "Yesterday  ·  $short"
+            else -> d.format(DateTimeFormatter.ofPattern("EEEE, MMM d"))
+        }.uppercase()
+    }
+
+    /**
+     * Same order as the app: favorites first, then the other games grouped by local day
+     * (a divider row before each day), live games first within a day, then by start time.
+     */
     fun rows(games: List<Game>, favIds: Set<String>, wide: Boolean, zone: ZoneId, today: LocalDate): List<WidgetRow> {
         val stateOrder = mapOf("in" to 0, "pre" to 1, "post" to 2)
         fun isFav(g: Game) = g.home.id in favIds || g.away.id in favIds
-        return games
-            .sortedWith(compareBy<Game>({ if (isFav(it)) 0 else 1 }, { stateOrder[it.state] ?: 3 }, { it.date }))
-            .map { g ->
+        fun day(g: Game) = try { OffsetDateTime.parse(g.date).atZoneSameInstant(zone).toLocalDate() } catch (e: Exception) { null }
+        val favs = games.filter(::isFav).sortedWith(compareBy<Game>({ stateOrder[it.state] ?: 3 }, { it.date }))
+        val out = favs.map { row(it, wide, zone, today) }.toMutableList()
+        games.filterNot(::isFav).groupBy(::day).toSortedMap(nullsLast(compareBy<LocalDate> { it })).forEach { (d, list) ->
+            out += WidgetRow.divider(dayLabel(d, today))
+            list.sortedWith(compareBy<Game>({ if (it.state == "in") 0 else 1 }, { it.date })).forEach { out += row(it, wide, zone, today) }
+        }
+        return out
+    }
+
+    private fun row(g: Game, wide: Boolean, zone: ZoneId, today: LocalDate): WidgetRow = run {
                 val pre = g.state == "pre"
                 WidgetRow(
                     eventId = g.id,
@@ -63,5 +91,4 @@ object WidgetFormat {
                     homeBall = g.isLive && g.possessionTeamId != null && g.possessionTeamId == g.home.id,
                 )
             }
-    }
 }

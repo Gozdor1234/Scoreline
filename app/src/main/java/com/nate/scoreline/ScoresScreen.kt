@@ -312,22 +312,10 @@ private fun LazyListScope.dayGroupedItems(
 
 @Composable
 private fun DayDivider(d: java.time.LocalDate?) {
-    val today = java.time.LocalDate.now()
-    val label = when {
-        d == null -> "Date TBD"
-        else -> {
-            val date = d.format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d"))
-            when (d) {
-                today -> "Today  ·  $date"
-                today.plusDays(1) -> "Tomorrow  ·  $date"
-                today.minusDays(1) -> "Yesterday  ·  $date"
-                else -> d.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMM d"))
-            }
-        }
-    }
+    val label = WidgetFormat.dayLabel(d, java.time.LocalDate.now())
     Row(Modifier.fillMaxWidth().padding(start = 4.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
-            label.uppercase(),
+            label,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
