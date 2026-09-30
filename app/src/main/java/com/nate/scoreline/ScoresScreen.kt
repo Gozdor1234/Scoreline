@@ -68,6 +68,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.HorizontalDivider
 import coil.request.ImageRequest
 import coil.compose.AsyncImage
 
@@ -235,10 +236,10 @@ fun ScoresScreen(modifier: Modifier, open: (Route) -> Unit) {
                 ) {
                     if (pinnedGames.isNotEmpty()) {
                         item { ListLabel("★ Pinned: ${Conferences.name(pinId)}") }
-                        gameItems(pinnedGames, twoCol, zoom) { g -> GameCard(g, isFav(g), oddsFor(g)) { open(Route.GameDetail(league, g.id)) } }
+                        dayGroupedItems("pin", pinnedGames, ::isFav, mineOnly, twoCol, zoom) { g -> GameCard(g, isFav(g), oddsFor(g)) { open(Route.GameDetail(league, g.id)) } }
                         if (games.isNotEmpty()) item { ListLabel(if (view == "top25") "Top 25" else "All FBS") }
                     }
-                    gameItems(games, twoCol, zoom) { g -> GameCard(g, isFav(g), oddsFor(g)) { open(Route.GameDetail(league, g.id)) } }
+                    dayGroupedItems("all", games, ::isFav, mineOnly, twoCol, zoom) { g -> GameCard(g, isFav(g), oddsFor(g)) { open(Route.GameDetail(league, g.id)) } }
                     item {
                         Text(
                             agoText(polled.state.updatedAt),
@@ -281,6 +282,58 @@ private fun LazyListScope.gameItems(games: List<Game>, twoCol: Boolean, zoom: Fl
                 if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
+    }
+}
+
+/**
+ * Favorites stay on top as before; every other game is grouped by local calendar day under a
+ * subtle date divider (live games first within a day, then by kickoff). With "My teams" on,
+ * all shown games are favorites, so they're grouped by day too.
+ */
+private fun LazyListScope.dayGroupedItems(
+    section: String,
+    games: List<Game>,
+    isFav: (Game) -> Boolean,
+    mineOnly: Boolean,
+    twoCol: Boolean,
+    zoom: Float,
+    card: @Composable (Game) -> Unit,
+) {
+    val favs = if (mineOnly) emptyList() else games.filter(isFav)
+    val rest = games.filterNot { it in favs }
+    if (favs.isNotEmpty()) gameItems(favs, twoCol, zoom, card)
+    val zone = java.time.ZoneId.systemDefault()
+    fun day(g: Game) = runCatching { java.time.OffsetDateTime.parse(g.date).atZoneSameInstant(zone).toLocalDate() }.getOrNull()
+    rest.groupBy(::day).toSortedMap(nullsLast(compareBy<java.time.LocalDate> { it })).forEach { (d, list) ->
+        item(key = "day-$section-${d ?: "tbd"}") { DayDivider(d) }
+        gameItems(list.sortedWith(compareBy<Game>({ if (it.state == "in") 0 else 1 }, { it.date })), twoCol, zoom, card)
+    }
+}
+
+@Composable
+private fun DayDivider(d: java.time.LocalDate?) {
+    val today = java.time.LocalDate.now()
+    val label = when {
+        d == null -> "Date TBD"
+        else -> {
+            val date = d.format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d"))
+            when (d) {
+                today -> "Today  ·  $date"
+                today.plusDays(1) -> "Tomorrow  ·  $date"
+                today.minusDays(1) -> "Yesterday  ·  $date"
+                else -> d.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMM d"))
+            }
+        }
+    }
+    Row(Modifier.fillMaxWidth().padding(start = 4.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.width(10.dp))
+        HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
