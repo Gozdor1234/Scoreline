@@ -418,6 +418,7 @@ fun GolfEventScreen(eventId: String, onBack: () -> Unit, open: (Route) -> Unit) 
                     if (tour == null) return@LoadableContent
                     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
                         if (tab == 0) {
+                            item(key = "course-map") { CourseMapCard(tour.name, tour.start) }
                             item { TournamentInfo(tour) }
                             // Leaderboard (same round picker as the Leaderboard tab), top 10 with "Show all".
                             if (tour.entries.isNotEmpty()) {
