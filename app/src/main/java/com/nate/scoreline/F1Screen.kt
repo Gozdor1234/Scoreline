@@ -434,10 +434,12 @@ private fun SeasonView(open: (Route) -> Unit) {
 private fun RoundCard(r: F1Round, next: Boolean, expandable: Boolean = false, expanded: Boolean = false, onClick: () -> Unit) {
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp).animateContentSize(),
+        // animateContentSize sits on the inner column: on the card itself it clips to a square
+        // and cuts the Modern style's rounded shadow into sharp corners.
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp),
         colors = if (next) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer) else CardDefaults.cardColors(),
     ) {
-      Column {
+      Column(Modifier.animateContentSize()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.width(44.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("R${r.round}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
