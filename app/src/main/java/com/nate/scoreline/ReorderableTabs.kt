@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -65,8 +66,14 @@ fun ReorderableTabRow(
         currentOnReorder(working)
     }
 
+    val modern = LocalModern.current
+    val mp = modernPalette
     Column(modifier) {
-        Row(Modifier.fillMaxWidth().onSizeChanged { rowWidth = it.width }) {
+        Row(
+            Modifier.fillMaxWidth()
+                .then(if (modern) Modifier.padding(horizontal = 10.dp, vertical = 6.dp).neuInset(mp, 24.dp).padding(4.dp) else Modifier)
+                .onSizeChanged { rowWidth = it.width },
+        ) {
             working.forEach { id ->
                 // key(): the dragged tab keeps its gesture handler while it moves between slots.
                 key(id) {
@@ -81,7 +88,11 @@ fun ReorderableTabRow(
                                 scaleX = sc
                                 scaleY = sc
                             }
-                            .background(if (isDragging) lifted else Color.Transparent, RoundedCornerShape(10.dp))
+                            .then(
+                                if (modern) {
+                                    if (selected == id || isDragging) Modifier.neuRaised(mp, 20.dp, 3.dp, 6.dp).clip(RoundedCornerShape(20.dp)) else Modifier
+                                } else Modifier.background(if (isDragging) lifted else Color.Transparent, RoundedCornerShape(10.dp)),
+                            )
                             .pointerInput(id) {
                                 detectDragGesturesAfterLongPress(
                                     onDragStart = {
@@ -126,8 +137,8 @@ fun ReorderableTabRow(
                 }
             }
         }
-        // Selection indicator under the chosen tab.
-        Row(Modifier.fillMaxWidth()) {
+        // Selection indicator under the chosen tab (Modern uses the raised pill instead).
+        if (!modern) Row(Modifier.fillMaxWidth()) {
             working.forEach { id ->
                 Box(
                     Modifier
@@ -141,6 +152,6 @@ fun ReorderableTabRow(
                 )
             }
         }
-        HorizontalDivider()
+        if (!modern) HorizontalDivider()
     }
 }

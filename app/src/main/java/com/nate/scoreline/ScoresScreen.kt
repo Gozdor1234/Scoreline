@@ -44,15 +44,11 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -68,6 +64,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.HorizontalDivider
 import coil.request.ImageRequest
 import coil.compose.AsyncImage
@@ -321,7 +320,14 @@ private fun DayDivider(d: java.time.LocalDate?) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.width(10.dp))
-        HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+        if (LocalModern.current) {
+            Box(Modifier.weight(1f).height(2.dp).background(
+                androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(modernPalette.edge, Color.Transparent)),
+                RoundedCornerShape(1.dp),
+            ))
+        } else {
+            HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant)
+        }
     }
 }
 

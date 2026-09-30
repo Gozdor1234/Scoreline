@@ -31,6 +31,9 @@ class Favorites private constructor(context: Context) {
     /** "system", "light", "dark" or "amoled" */
     var themeMode by mutableStateOf(prefs.getString(KEY_THEME, "system") ?: "system")
         private set
+    /** Modern style: glass surfaces with soft raised/pressed shadows. Off = standard Material look. */
+    var modernStyle by mutableStateOf(prefs.getBoolean(KEY_MODERN, false))
+        private set
     /** Use the phone's wallpaper-based palette (Android 12+). */
     var matchPhoneColors by mutableStateOf(prefs.getBoolean(KEY_DYNAMIC, true))
         private set
@@ -102,6 +105,7 @@ class Favorites private constructor(context: Context) {
     fun updateScoreAlerts(enabled: Boolean) { scoreAlerts = enabled; prefs.edit().putBoolean(KEY_SCORE_ALERTS, enabled).apply() }
     fun updateF1Alerts(enabled: Boolean) { f1Alerts = enabled; prefs.edit().putBoolean(KEY_F1_ALERTS, enabled).apply() }
     // Named update*, not set*: a set* name would clash with the property's generated setter.
+    fun updateModernStyle(on: Boolean) { modernStyle = on; prefs.edit().putBoolean(KEY_MODERN, on).apply() }
     fun updateThemeMode(mode: String) { themeMode = mode; prefs.edit().putString(KEY_THEME, mode).apply() }
     fun updateMatchPhoneColors(on: Boolean) { matchPhoneColors = on; prefs.edit().putBoolean(KEY_DYNAMIC, on).apply() }
     fun updateTabOrder(order: List<Int>) { tabOrder = order; prefs.edit().putString(KEY_TAB_ORDER, order.joinToString(",")).apply() }
@@ -166,6 +170,7 @@ class Favorites private constructor(context: Context) {
         private const val KEY_SCORE_ALERTS = "score_alerts"
         private const val KEY_F1_ALERTS = "f1_alerts"
         private const val KEY_THEME = "theme_mode"
+        private const val KEY_MODERN = "modern_style"
         private const val KEY_DYNAMIC = "match_phone_colors"
         private const val KEY_TAB_ORDER = "game_tab_order"
         private const val KEY_NAV_ORDER = "nav_order"

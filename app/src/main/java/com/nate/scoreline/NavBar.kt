@@ -87,10 +87,17 @@ fun ReorderableNavBar(order: List<Int>, selected: Int, onSelect: (Int) -> Unit, 
         currentOnReorder(working)
     }
 
-    Surface(color = barColor) {
+    val modern = LocalModern.current
+    val mp = modernPalette
+    // Modern: a floating raised glass bar with the selected item pressed in.
+    Surface(color = if (modern) Color.Transparent else barColor) {
         Row(
-            Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).height(80.dp)
-                .onSizeChanged { rowWidth = it.width },
+            (if (modern) {
+                Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(start = 12.dp, end = 12.dp, bottom = 8.dp, top = 4.dp).height(74.dp).neuRaised(mp, 26.dp)
+            } else {
+                Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).height(80.dp)
+            }).onSizeChanged { rowWidth = it.width },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             working.forEach { id ->
@@ -144,10 +151,13 @@ fun ReorderableNavBar(order: List<Int>, selected: Int, onSelect: (Int) -> Unit, 
                     ) {
                         Box(
                             Modifier.width(60.dp).height(32.dp)
-                                .background(if (isSel || isDragging) pill else Color.Transparent, RoundedCornerShape(16.dp)),
+                                .then(
+                                    if (modern) { if (isSel || isDragging) Modifier.neuInset(mp, 16.dp) else Modifier }
+                                    else Modifier.background(if (isSel || isDragging) pill else Color.Transparent, RoundedCornerShape(16.dp)),
+                                ),
                             contentAlignment = Alignment.Center,
                         ) {
-                            val tint = if (isSel || isDragging) onPill else unselected
+                            val tint = if (isSel || isDragging) { if (modern) cs.primary else onPill } else unselected
                             if (t.icon != null) Icon(t.icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
                             else Icon(painterResource(t.drawable), contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
                         }
@@ -155,7 +165,7 @@ fun ReorderableNavBar(order: List<Int>, selected: Int, onSelect: (Int) -> Unit, 
                             t.label,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = if (isSel) FontWeight.SemiBold else FontWeight.Medium,
-                            color = if (isSel) selectedText else unselected,
+                            color = if (isSel) { if (modern) cs.primary else selectedText } else unselected,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(top = 4.dp),

@@ -24,8 +24,9 @@ import androidx.compose.ui.unit.dp
 fun OddsTable(odds: GameOdds, awayAbbr: String, homeAbbr: String, modifier: Modifier = Modifier, divider: Boolean = true) {
     val sub = MaterialTheme.colorScheme.onSurfaceVariant
     fun withPrice(line: String, price: String) = if (line.isBlank()) "–" else if (price.isBlank()) line else "$line ($price)"
-    Column(modifier) {
-        if (divider) HorizontalDivider(Modifier.padding(bottom = 6.dp))
+    val modern = LocalModern.current
+    Column(if (modern) modifier.modernWell().padding(horizontal = 12.dp, vertical = 8.dp) else modifier) {
+        if (divider && !modern) HorizontalDivider(Modifier.padding(bottom = 6.dp))
         Row(Modifier.fillMaxWidth()) {
             Text(odds.source, Modifier.width(64.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = sub, maxLines = 1)
             Text("SPREAD", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = sub, textAlign = TextAlign.End)

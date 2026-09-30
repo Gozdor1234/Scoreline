@@ -57,9 +57,10 @@ import java.net.URLEncoder
 /** A page's top tabs with a search button at the left, on the same line. */
 @Composable
 fun SearchTabs(open: (Route) -> Unit, tabs: @Composable () -> Unit) {
-    Surface(color = TabRowDefaults.primaryContainerColor) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { open(Route.Search) }) {
+    val modern = LocalModern.current
+    Surface(color = if (modern) Color.Transparent else TabRowDefaults.primaryContainerColor) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = if (modern) Modifier.padding(start = 8.dp, top = 4.dp) else Modifier) {
+            IconButton(onClick = { open(Route.Search) }, modifier = Modifier.modernRound()) {
                 Icon(Icons.Filled.Search, contentDescription = "Search")
             }
             Box(Modifier.weight(1f)) { tabs() }

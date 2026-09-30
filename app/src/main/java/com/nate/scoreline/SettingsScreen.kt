@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -165,6 +164,8 @@ fun SettingsScreen(modifier: Modifier, open: (Route) -> Unit) {
         item { OddsKeySettings(fav) }
 
         item { SectionHeader("Appearance") }
+        item { SwitchRow("Modern style (glass panels, soft shadows)", fav.modernStyle) { fav.updateModernStyle(it) } }
+        item { Hint("Off keeps the standard look. Works with every theme below. The home-screen widget always uses the standard look.") }
         item {
             SwitchRow("Match my phone's colors", fav.matchPhoneColors && supportsPhoneColors, enabled = supportsPhoneColors) {
                 fav.updateMatchPhoneColors(it)

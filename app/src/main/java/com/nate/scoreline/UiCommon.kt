@@ -125,7 +125,15 @@ fun ScorelineTheme(content: @Composable () -> Unit) {
         else -> base
     }
     val custom = if (prefs.customColorsOn) prefs.customColors else emptyMap()
-    val scheme = themed.withCustom(custom)
+    val modern = prefs.modernStyle
+    // Modern light mode sits on a soft gray-blue page so the glass edges and shadows show.
+    val modernBase = if (modern && !dark && !(prefs.matchPhoneColors && supportsPhoneColors)) {
+        themed.copy(
+            background = ModernLightBackground, surface = ModernLightBackground,
+            surfaceContainer = ModernLightBackground, surfaceContainerLow = ModernLightBackground,
+        )
+    } else themed
+    val scheme = modernBase.withCustom(custom)
     val extra = extraColors(custom)
 
     // Status/navigation bar icons follow the actual background, so they stay readable
@@ -141,7 +149,7 @@ fun ScorelineTheme(content: @Composable () -> Unit) {
         )
     }
 
-    CompositionLocalProvider(LocalExtraColors provides extra) {
+    CompositionLocalProvider(LocalExtraColors provides extra, LocalModern provides modern) {
         MaterialTheme(colorScheme = scheme) {
             Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, content = content)
         }
