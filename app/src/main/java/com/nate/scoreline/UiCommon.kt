@@ -127,11 +127,13 @@ fun ScorelineTheme(content: @Composable () -> Unit) {
     val custom = if (prefs.customColorsOn) prefs.customColors else emptyMap()
     val modern = prefs.modernStyle
     // Modern light mode sits on a soft gray-blue page so the glass edges and shadows show.
-    val modernBase = if (modern && !dark && !(prefs.matchPhoneColors && supportsPhoneColors)) {
-        themed.copy(
-            background = ModernLightBackground, surface = ModernLightBackground,
-            surfaceContainer = ModernLightBackground, surfaceContainerLow = ModernLightBackground,
-        )
+    // With phone colors, keep their hue but shade the near-white page slightly so the white
+    // highlights on glass edges stay visible.
+    val modernBase = if (modern && !dark) {
+        val page = if (prefs.matchPhoneColors && supportsPhoneColors) {
+            Color(ColorMath.mix(themed.background.toArgb(), 0xFF1E3A64.toInt(), 0.07f))
+        } else ModernLightBackground
+        themed.copy(background = page, surface = page, surfaceContainer = page, surfaceContainerLow = page)
     } else themed
     val scheme = modernBase.withCustom(custom)
     val extra = extraColors(custom)
