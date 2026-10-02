@@ -212,6 +212,21 @@ object F1Profiles {
         F1Career(wins.await(), poles.await(), titles.await(), null)
     }
 
+    /**
+     * Official formula1.com driver photo for this season's team. The file name is the driver
+     * code formula1.com uses: first 3 letters of the first name + first 3 of the surname + "01"
+     * (Franco Colapinto -> fracol01).
+     */
+    fun officialPhoto(fullName: String, team: String, year: Int): String? {
+        val slug = F1Teams.style(team).slug ?: return null
+        fun clean(w: String) = java.text.Normalizer.normalize(w, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}+"), "").lowercase().filter { it in 'a'..'z' }
+        val words = fullName.trim().split(Regex("\\s+")).map(::clean).filter { it.isNotEmpty() }
+        if (words.size < 2) return null
+        val code = words.first().take(3) + words.last().take(3) + "01"
+        return "https://media.formula1.com/image/upload/c_lfill,w_480/q_auto/v1740000000/common/f1/$year/$slug/$code/$year$slug${code}right.webp"
+    }
+
     /** Driver photo from OpenF1's latest session, matched by surname. Null if unavailable. */
     private var headshots: Map<String, String>? = null
     suspend fun headshot(fullName: String): String? {

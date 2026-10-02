@@ -334,24 +334,40 @@ fun agoText(updatedAt: Long): String {
 }
 
 /**
- * F1 team logo (official image from formula1.com): full color on light themes, white on dark.
- * Falls back to a round badge in the team's color with its short code if no logo loads.
+ * F1 team logo (official image from formula1.com) in full color, on light and dark themes.
+ * On dark themes a logo that is itself mostly dark (it would vanish on the background) is
+ * swapped for the team's all-white version. Falls back to a round badge with the team code.
  */
 @Composable
 fun TeamBadge(team: String, size: Dp = 26.dp) {
-    val white = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val darkUi = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val year = remember { java.time.LocalDate.now().year }
+    var white by remember(team, darkUi) { mutableStateOf(darkUi && F1Teams.darkLogo[team] == true) }
     val urls = remember(team, white, year) { F1Teams.logoUrls(team, white, year) }
     var attempt by remember(urls) { mutableIntStateOf(0) }
+    val ctx = LocalContext.current
     // Logos are mostly wordmarks, so give them a wider box than the round badge.
     Box(Modifier.width(size * 1.4f).height(size), contentAlignment = Alignment.Center) {
         if (attempt < urls.size) {
+            val checkShade = darkUi && !white && F1Teams.darkLogo[team] == null
+            val request = remember(urls, attempt, checkShade) {
+                coil.request.ImageRequest.Builder(ctx).data(urls[attempt])
+                    .apply { if (checkShade) allowHardware(false) }
+                    .build()
+            }
             AsyncImage(
-                model = urls[attempt],
+                model = request,
                 contentDescription = team,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
                 onError = { attempt++ },
+                onSuccess = { st ->
+                    if (checkShade) {
+                        val tooDark = F1Teams.isMostlyDark(st.result.drawable)
+                        F1Teams.darkLogo[team] = tooDark
+                        if (tooDark) white = true
+                    }
+                },
             )
         } else {
             val st = F1Teams.style(team)

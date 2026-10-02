@@ -297,6 +297,37 @@ object F1Teams {
         }
     }
 
+    /** Team name -> whether its color logo is too dark to show on a dark background. */
+    val darkLogo = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
+    /** True when the visible pixels of a logo are, on average, dark (luminance under 0.3). */
+    fun isMostlyDark(d: android.graphics.drawable.Drawable): Boolean {
+        val bmp = (d as? android.graphics.drawable.BitmapDrawable)?.bitmap ?: return false
+        if (bmp.config == android.graphics.Bitmap.Config.HARDWARE) return false
+        val stepX = maxOf(1, bmp.width / 48)
+        val stepY = maxOf(1, bmp.height / 48)
+        var sum = 0.0
+        var weight = 0.0
+        var y = 0
+        while (y < bmp.height) {
+            var x = 0
+            while (x < bmp.width) {
+                val c = bmp.getPixel(x, y)
+                val a = (c ushr 24 and 0xFF) / 255.0
+                if (a > 0.2) {
+                    val r = (c shr 16 and 0xFF) / 255.0
+                    val g = (c shr 8 and 0xFF) / 255.0
+                    val b = (c and 0xFF) / 255.0
+                    sum += (0.2126 * r + 0.7152 * g + 0.0722 * b) * a
+                    weight += a
+                }
+                x += stepX
+            }
+            y += stepY
+        }
+        return weight > 0 && sum / weight < 0.3
+    }
+
     fun style(team: String): Style {
         val t = team.lowercase()
         return styles.firstOrNull { (keys, _) -> keys.any { it in t } }?.second

@@ -75,14 +75,20 @@ fun F1DriverScreen(driverId: String, fallbackName: String, onBack: () -> Unit, o
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
             LoadableContent(p) { d ->
-                val photo by produceState<String?>(null, d.name) { value = F1Profiles.headshot(d.name) }
+                // formula1.com's own photo first; OpenF1's link only if that one is missing.
+                val official = remember(d.name, d.team) { F1Profiles.officialPhoto(d.name, d.team, java.time.LocalDate.now().year) }
+                var officialFailed by remember(official) { mutableStateOf(official == null) }
+                val openF1 by produceState<String?>(null, officialFailed, d.name) {
+                    if (officialFailed) value = runCatching { F1Profiles.headshot(d.name) }.getOrNull()
+                }
+                val photo = if (!officialFailed) official else openF1
                 LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
                     item {
                         Row(
                             Modifier.fillMaxWidth().background(teamFade(teamHex(d.team))).padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            DriverPhoto(photo.orEmpty(), 96.dp)
+                            DriverPhoto(photo.orEmpty(), 96.dp, onFail = { if (!officialFailed) officialFailed = true })
                             Spacer(Modifier.width(16.dp))
                             Column {
                                 Text(d.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -456,7 +462,7 @@ private fun PointsHistory(rounds: List<Triple<String, String, Double>>) {
  * thumbnail OpenF1 links to ("1col"), and falling back to the thumbnail if that fails.
  */
 @Composable
-private fun DriverPhoto(url: String, size: androidx.compose.ui.unit.Dp) {
+private fun DriverPhoto(url: String, size: androidx.compose.ui.unit.Dp, onFail: () -> Unit = {}) {
     val hi = remember(url) { url.replace("/1col/", "/4col/") }
     var failed by remember(url) { mutableStateOf(false) }
     Box(
@@ -471,7 +477,7 @@ private fun DriverPhoto(url: String, size: androidx.compose.ui.unit.Dp) {
                 alignment = Alignment.TopCenter,
                 filterQuality = FilterQuality.High,
                 modifier = Modifier.size(size),
-                onError = { if (!failed && hi != url) failed = true },
+                onError = { if (!failed && hi != url) failed = true else onFail() },
             )
         }
     }
