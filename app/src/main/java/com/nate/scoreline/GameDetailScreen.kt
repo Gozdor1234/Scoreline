@@ -28,6 +28,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -210,6 +211,14 @@ private fun GameHeader(
                 style = MaterialTheme.typography.labelLarge,
                 textAlign = TextAlign.Center,
             )
+            if (g.state == "pre" || g.isLive) {
+                GameWeatherTag(
+                    g, compact = false,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = LocalContentColor.current,
+                    leadingDot = false,
+                )
+            }
             if (g.isLive && g.downDistance.isNotBlank()) {
                 Text(g.downDistance, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

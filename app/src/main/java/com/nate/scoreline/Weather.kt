@@ -267,17 +267,22 @@ object WeatherData {
 
 /** Forecast for the right end of a game card's status line, sized to match labelMedium text. */
 @Composable
-fun GameWeatherTag(g: Game, compact: Boolean, modifier: Modifier = Modifier) {
+fun GameWeatherTag(
+    g: Game,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.labelMedium,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    leadingDot: Boolean = true,
+) {
     val ctx = LocalContext.current
     val w by produceState(g.venue?.takeIf { it.indoor }?.let { GameWeather(null, "Indoors", Sky.INDOOR) } ?: g.weather, g.id, g.weather, g.venue) {
         if (value == null && g.venue != null) value = WeatherData.forecast(ctx, g.venue, g.date)
     }
     val weather = w ?: return
-    val style = MaterialTheme.typography.labelMedium
     val iconSize = with(LocalDensity.current) { (style.fontSize * 1.3f).toDp() }
-    val color = MaterialTheme.colorScheme.onSurfaceVariant
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text("  •  ", style = style, color = color, maxLines = 1)
+        if (leadingDot) Text("  •  ", style = style, color = color, maxLines = 1)
         WeatherIcon(weather.sky, weather.night, Modifier.size(iconSize))
         val text = when {
             weather.sky == Sky.INDOOR -> if (compact) "" else "Indoors"

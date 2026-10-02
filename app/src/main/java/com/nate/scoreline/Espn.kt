@@ -267,6 +267,17 @@ object Espn {
             // The game page's feed keeps betting lines in "pickcenter" rather than on the event.
             if (g.odds != null) g
             else g.copy(odds = root.arr("pickcenter").objects().firstNotNullOfOrNull { OddsParse.espn(it, g.away.abbr, g.home.abbr) })
+        }?.let { g ->
+            // The game page's feed keeps weather and the stadium under "gameInfo".
+            val info = root.obj("gameInfo")
+            val v = info?.obj("venue")
+            g.copy(
+                weather = g.weather ?: WeatherData.parseEspn(info?.obj("weather")),
+                venue = g.venue?.takeIf { it.city.isNotBlank() } ?: v?.let {
+                    val a = it.obj("address")
+                    GameVenue(a?.str("city").orEmpty(), a?.str("state").orEmpty(), it.optBoolean("indoor", false))
+                } ?: g.venue,
+            )
         }
         val box = root.obj("boxscore")
 
