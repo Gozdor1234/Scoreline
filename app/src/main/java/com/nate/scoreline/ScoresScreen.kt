@@ -18,6 +18,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Star
@@ -420,28 +421,36 @@ fun GameCard(g: Game, favorite: Boolean, odds: GameOdds? = null, showDate: Boole
         Column(Modifier.padding(12.dp)) {
             TeamLine(g.away, g, hasBall = g.isLive && g.possessionTeamId == g.away.id)
             TeamLine(g.home, g, hasBall = g.isLive && g.possessionTeamId == g.home.id)
-            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                when (g.state) {
-                    "in" -> {
-                        LiveBadge()
-                        Text("  ${g.detail}", style = MaterialTheme.typography.labelMedium)
-                        if (g.downDistance.isNotBlank()) {
-                            Text("  •  ${g.downDistance}", style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val compact = maxWidth < 300.dp
+                Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        when (g.state) {
+                            "in" -> {
+                                LiveBadge()
+                                Text("  ${g.detail}", style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                                if (g.downDistance.isNotBlank()) {
+                                    Text("  •  ${g.downDistance}", style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                            "pre" -> Text(
+                                listOf(formatLocal(g.date).ifEmpty { g.detail }, g.broadcast).filter { it.isNotBlank() }.joinToString("  •  "),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            else -> {
+                                Text(g.detail, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                val day = if (showDate) gameDay(g.date) else ""
+                                if (day.isNotEmpty()) {
+                                    Text("  •  $day", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
                         }
                     }
-                    "pre" -> Text(
-                        listOf(formatLocal(g.date).ifEmpty { g.detail }, g.broadcast).filter { it.isNotBlank() }.joinToString("  •  "),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    else -> {
-                        Text(g.detail, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                        val day = if (showDate) gameDay(g.date) else ""
-                        if (day.isNotEmpty()) {
-                            Text("  •  $day", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
+                    if (g.state == "pre" || g.state == "in") GameWeatherTag(g, compact)
                 }
             }
             if (odds != null && g.state == "pre") OddsTable(odds, g.away.abbr, g.home.abbr, Modifier.padding(top = 8.dp))

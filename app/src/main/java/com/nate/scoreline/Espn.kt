@@ -62,6 +62,9 @@ data class Game(
     val broadcast: String,
     /** Pre-game lines from ESPN's feed (DraftKings), if posted. */
     val odds: GameOdds? = null,
+    /** Game-time forecast from ESPN, when posted. */
+    val weather: GameWeather? = null,
+    val venue: GameVenue? = null,
 ) {
     val isLive get() = state == "in"
     val matchup get() = "${away.abbr} @ ${home.abbr}"
@@ -221,6 +224,11 @@ object Espn {
                 ?: situation?.str("downDistanceText") ?: "",
             broadcast = broadcast,
             odds = comp.arr("odds").objects().firstNotNullOfOrNull { OddsParse.espn(it, away.abbr, home.abbr) },
+            weather = WeatherData.parseEspn(ev.obj("weather") ?: comp.obj("weather")),
+            venue = comp.obj("venue")?.let { v ->
+                val a = v.obj("address")
+                GameVenue(a?.str("city").orEmpty(), a?.str("state").orEmpty(), v.optBoolean("indoor", false))
+            },
         )
     }
 
