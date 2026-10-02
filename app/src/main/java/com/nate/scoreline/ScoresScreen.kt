@@ -423,34 +423,32 @@ fun GameCard(g: Game, favorite: Boolean, odds: GameOdds? = null, showDate: Boole
             TeamLine(g.home, g, hasBall = g.isLive && g.possessionTeamId == g.home.id)
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val compact = maxWidth < 300.dp
+                // Forecast follows the network (or down and distance), after a dot, and is the part that shortens if space runs out.
                 Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                        when (g.state) {
-                            "in" -> {
-                                LiveBadge()
-                                Text("  ${g.detail}", style = MaterialTheme.typography.labelMedium, maxLines = 1)
-                                if (g.downDistance.isNotBlank()) {
-                                    Text("  •  ${g.downDistance}", style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
+                    when (g.state) {
+                        "in" -> {
+                            LiveBadge()
+                            Text("  ${g.detail}", style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                            if (g.downDistance.isNotBlank()) {
+                                Text("  •  ${g.downDistance}", style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                             }
-                            "pre" -> Text(
-                                listOf(formatLocal(g.date).ifEmpty { g.detail }, g.broadcast).filter { it.isNotBlank() }.joinToString("  •  "),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            else -> {
-                                Text(g.detail, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                                val day = if (showDate) gameDay(g.date) else ""
-                                if (day.isNotEmpty()) {
-                                    Text("  •  $day", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
+                        }
+                        "pre" -> Text(
+                            listOf(formatLocal(g.date).ifEmpty { g.detail }, g.broadcast).filter { it.isNotBlank() }.joinToString("  •  "),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                        else -> {
+                            Text(g.detail, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                            val day = if (showDate) gameDay(g.date) else ""
+                            if (day.isNotEmpty()) {
+                                Text("  •  $day", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
-                    if (g.state == "pre" || g.state == "in") GameWeatherTag(g, compact)
+                    if (g.state == "pre" || g.state == "in") GameWeatherTag(g, compact, Modifier.weight(1f, fill = false))
                 }
             }
             if (odds != null && g.state == "pre") OddsTable(odds, g.away.abbr, g.home.abbr, Modifier.padding(top = 8.dp))

@@ -52,14 +52,54 @@ object WeatherData {
      */
     fun parseEspn(w: JSONObject?): GameWeather? {
         if (w == null) return null
-        val text = w.str("displayValue")
-        val id = w.str("conditionId").toIntOrNull() ?: 0
+        val raw = w.str("displayValue").trim()
+        // Some games (often live ones) send the AccuWeather condition number as the text, like "7".
+        val id = w.str("conditionId").trim().toIntOrNull() ?: raw.toIntOrNull() ?: 0
+        val text = if (raw.any { it.isLetter() }) raw else accuText(id)
         val temp = listOf("temperature", "highTemperature").firstNotNullOfOrNull { k ->
             if (w.has(k) && !w.isNull(k)) w.optDouble(k, Double.NaN).takeIf { !it.isNaN() }?.roundToInt() else null
         }
         if (text.isBlank() && temp == null && id == 0) return null
         val sky = if (id != 0) accuSky(id) else skyFromText(text)
         return GameWeather(temp, text.ifBlank { label(sky) }, sky, night = id in 33..44)
+    }
+
+    /** AccuWeather condition names by icon number; "" when unknown. */
+    fun accuText(id: Int): String = when (id) {
+        1, 30 -> "Sunny"
+        2 -> "Mostly Sunny"
+        3 -> "Partly Sunny"
+        4, 36 -> "Intermittent Clouds"
+        5 -> "Hazy Sunshine"
+        6, 38 -> "Mostly Cloudy"
+        7 -> "Cloudy"
+        8 -> "Dreary"
+        11 -> "Fog"
+        12 -> "Showers"
+        13, 40 -> "Mostly Cloudy w/ Showers"
+        14 -> "Partly Sunny w/ Showers"
+        15 -> "Thunderstorms"
+        16, 42 -> "Mostly Cloudy w/ T-Storms"
+        17 -> "Partly Sunny w/ T-Storms"
+        18 -> "Rain"
+        19 -> "Flurries"
+        20, 43 -> "Mostly Cloudy w/ Flurries"
+        21 -> "Partly Sunny w/ Flurries"
+        22 -> "Snow"
+        23, 44 -> "Mostly Cloudy w/ Snow"
+        24 -> "Ice"
+        25 -> "Sleet"
+        26 -> "Freezing Rain"
+        29 -> "Rain and Snow"
+        31 -> "Cold"
+        32 -> "Windy"
+        33 -> "Clear"
+        34 -> "Mostly Clear"
+        35 -> "Partly Cloudy"
+        37 -> "Hazy Moonlight"
+        39 -> "Partly Cloudy w/ Showers"
+        41 -> "Partly Cloudy w/ T-Storms"
+        else -> ""
     }
 
     fun accuSky(id: Int): Sky = when (id) {
@@ -237,7 +277,7 @@ fun GameWeatherTag(g: Game, compact: Boolean, modifier: Modifier = Modifier) {
     val iconSize = with(LocalDensity.current) { (style.fontSize * 1.3f).toDp() }
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Spacer(Modifier.width(8.dp))
+        Text("  •  ", style = style, color = color, maxLines = 1)
         WeatherIcon(weather.sky, weather.night, Modifier.size(iconSize))
         val text = when {
             weather.sky == Sky.INDOOR -> if (compact) "" else "Indoors"
